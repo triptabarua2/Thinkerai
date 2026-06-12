@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,7 +25,6 @@ interface Props {
   onClose: () => void;
 }
 
-const PANEL_HEIGHT = 480;
 const SWIPE_THRESHOLD = 60;
 
 function groupConversations(convs: ReturnType<typeof useApp>["conversations"]) {
@@ -44,9 +44,11 @@ function groupConversations(convs: ReturnType<typeof useApp>["conversations"]) {
 export function Sidebar({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
+  const PANEL_HEIGHT = screenHeight;
   const { conversations, createConversation, setSidebarOpen } = useApp();
 
-  const translateY = useRef(new Animated.Value(-PANEL_HEIGHT)).current;
+  const translateY = useRef(new Animated.Value(-screenHeight)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const dragY = useRef(new Animated.Value(0)).current;
   const isMounted = useRef(false);
@@ -191,11 +193,11 @@ export function Sidebar({ visible, onClose }: Props) {
         style={[
           styles.panel,
           {
+            height: PANEL_HEIGHT,
             backgroundColor: colors.surface,
-            borderBottomLeftRadius: 24,
-            borderBottomRightRadius: 24,
             borderColor: colors.border,
             paddingTop: topOffset + 8,
+            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 16,
             transform: [{ translateY: combinedY }],
           },
         ]}
@@ -290,8 +292,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: PANEL_HEIGHT,
-    borderBottomWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
