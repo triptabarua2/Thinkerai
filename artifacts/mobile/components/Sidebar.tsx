@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -23,14 +24,14 @@ interface Props {
   onClose: () => void;
 }
 
-const SIDEBAR_WIDTH = 300;
+const PANEL_HEIGHT = 480;
+const SWIPE_THRESHOLD = 60;
 
 function groupConversations(convs: ReturnType<typeof useApp>["conversations"]) {
   const now = Date.now();
   const today: typeof convs = [];
   const yesterday: typeof convs = [];
   const earlier: typeof convs = [];
-
   for (const c of convs) {
     const diff = now - c.updatedAt;
     if (diff < 86400000) today.push(c);
@@ -43,25 +44,71 @@ function groupConversations(convs: ReturnType<typeof useApp>["conversations"]) {
 export function Sidebar({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { conversations, createConversation, deleteConversation, setSidebarOpen } = useApp();
-  const translateX = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const { conversations, createConversation, setSidebarOpen } = useApp();
+
+  const translateY = useRef(new Animated.Value(-PANEL_HEIGHT)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
+  const isMounted = useRef(false);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.spring(translateX, {
-        toValue: visible ? 0 : -SIDEBAR_WIDTH,
-        damping: 22,
-        stiffness: 280,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: visible ? 1 : 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [visible, translateX, opacity]);
+    if (visible) {
+      isMounted.current = true;
+      dragY.setValue(0);
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          damping: 24,
+          stiffness: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: -PANEL_HEIGHT,
+          damping: 20,
+          stiffness: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        isMounted.current = false;
+      });
+    }
+  }, [visible, translateY, opacity, dragY]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dy) > 6 && g.dy < 0,
+      onPanResponderMove: (_, g) => {
+        if (g.dy < 0) dragY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy < -SWIPE_THRESHOLD || g.vy < -0.6) {
+          dragY.setValue(0);
+          onClose();
+        } else {
+          Animated.spring(dragY, {
+            toValue: 0,
+            damping: 20,
+            stiffness: 300,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   async function handleNewChat() {
     const id = await createConversation("New Chat");
@@ -87,7 +134,9 @@ export function Sidebar({ visible, onClose }: Props) {
     if (items.length === 0) return null;
     return (
       <View style={styles.group}>
-        <Text style={[styles.groupTitle, { color: colors.textTertiary }]}>{title}</Text>
+        <Text style={[styles.groupTitle, { color: colors.textTertiary }]}>
+          {title}
+        </Text>
         {items.map((conv) => {
           const agent = conv.agentType ? AGENTS[conv.agentType] : null;
           return (
@@ -100,7 +149,11 @@ export function Sidebar({ visible, onClose }: Props) {
               {agent ? (
                 <Feather name={agent.icon as any} size={14} color={agent.color} />
               ) : (
-                <Feather name="message-square" size={14} color={colors.textSecondary} />
+                <Feather
+                  name="message-square"
+                  size={14}
+                  color={colors.textSecondary}
+                />
               )}
               <Text
                 style={[styles.convTitle, { color: colors.text }]}
@@ -115,38 +168,51 @@ export function Sidebar({ visible, onClose }: Props) {
     );
   };
 
-  if (!visible && translateX.__getValue() === -SIDEBAR_WIDTH) return null;
+  if (!visible && !isMounted.current) return null;
+
+  const combinedY = Animated.add(translateY, dragY);
+  const topOffset = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={visible ? "auto" : "none"}>
       {/* Backdrop */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity }]}>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { opacity }]}
+        pointerEvents={visible ? "auto" : "none"}
+      >
         <Pressable
-          style={[styles.backdrop, { backgroundColor: "rgba(0,0,0,0.65)" }]}
+          style={[styles.backdrop, { backgroundColor: "rgba(0,0,0,0.6)" }]}
           onPress={onClose}
         />
       </Animated.View>
 
-      {/* Panel */}
+      {/* Drop-down panel */}
       <Animated.View
         style={[
           styles.panel,
           {
             backgroundColor: colors.surface,
-            borderRightColor: colors.border,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0),
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0),
-            transform: [{ translateX }],
+            borderBottomLeftRadius: 24,
+            borderBottomRightRadius: 24,
+            borderColor: colors.border,
+            paddingTop: topOffset + 8,
+            transform: [{ translateY: combinedY }],
           },
         ]}
+        {...panResponder.panHandlers}
       >
-        {/* Header */}
+        {/* Drag handle */}
+        <View style={styles.handleWrap}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        </View>
+
+        {/* Header row */}
         <View style={styles.panelHeader}>
           <View style={styles.logoRow}>
             <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
             <Text style={[styles.logoText, { color: colors.text }]}>Think AI</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
             <Feather name="x" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -155,13 +221,18 @@ export function Sidebar({ visible, onClose }: Props) {
         <TouchableOpacity
           style={[
             styles.newChatBtn,
-            { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" },
+            {
+              backgroundColor: colors.primary + "18",
+              borderColor: colors.primary + "40",
+            },
           ]}
           onPress={handleNewChat}
           activeOpacity={0.7}
         >
           <Feather name="plus" size={16} color={colors.primary} />
-          <Text style={[styles.newChatText, { color: colors.primary }]}>New Chat</Text>
+          <Text style={[styles.newChatText, { color: colors.primary }]}>
+            New Chat
+          </Text>
         </TouchableOpacity>
 
         {/* Conversations */}
@@ -186,14 +257,18 @@ export function Sidebar({ visible, onClose }: Props) {
           )}
         </ScrollView>
 
-        {/* Footer */}
+        {/* Footer links */}
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
           {[
             { icon: "folder", label: "Projects" },
             { icon: "zap", label: "Workflows" },
             { icon: "settings", label: "Settings" },
           ].map((item) => (
-            <TouchableOpacity key={item.label} style={styles.footerItem} activeOpacity={0.7}>
+            <TouchableOpacity
+              key={item.label}
+              style={styles.footerItem}
+              activeOpacity={0.7}
+            >
               <Feather name={item.icon as any} size={16} color={colors.textSecondary} />
               <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>
                 {item.label}
@@ -212,18 +287,33 @@ const styles = StyleSheet.create({
   },
   panel: {
     position: "absolute",
-    left: 0,
     top: 0,
-    bottom: 0,
-    width: SIDEBAR_WIDTH,
-    borderRightWidth: 1,
+    left: 0,
+    right: 0,
+    height: PANEL_HEIGHT,
+    borderBottomWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 16,
+  },
+  handleWrap: {
+    alignItems: "center",
+    paddingBottom: 4,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
   },
   panelHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   logoRow: {
     flexDirection: "row",
@@ -283,7 +373,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 9,
     borderRadius: 10,
-    borderWidth: 0,
   },
   convTitle: {
     fontSize: 13,
@@ -293,27 +382,29 @@ const styles = StyleSheet.create({
   empty: {
     alignItems: "center",
     gap: 10,
-    paddingTop: 40,
+    paddingTop: 32,
   },
   emptyText: {
     fontSize: 13,
   },
   footer: {
     borderTopWidth: 1,
+    flexDirection: "row",
     paddingTop: 8,
-    paddingBottom: 8,
+    paddingBottom: 12,
     paddingHorizontal: 8,
   },
   footerItem: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
+    justifyContent: "center",
+    gap: 6,
     paddingVertical: 10,
     borderRadius: 10,
   },
   footerLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "400" as const,
   },
 });
