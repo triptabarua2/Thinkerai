@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { Router, type Request, type Response } from "express";
 
 const router = Router();
@@ -24,72 +23,99 @@ const AGENT_HINTS: Record<string, string> = {
   ceo: "\n\nYou are orchestrating this task as CEO Agent. Break it into clear steps and execute methodically.",
 };
 
-function getClient(): Anthropic {
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-  }
-  return new Anthropic({ apiKey });
+function getDeepSeekConfig() {
+  const apiKey = process.env["DEEPSEEK_API_KEY"];
+  if (!apiKey) throw new Error("DEEPSEEK_API_KEY environment variable is not set");
+  return { apiKey, baseUrl: "https://api.deepseek.com/v1" };
 }
 
-router.post(
-  "/",
-  async (req: Request, res: Response): Promise<void> => {
-    const { messages, agentType } = req.body as {
-      messages: { role: "user" | "assistant"; content: string }[];
-      agentType?: string;
-    };
+router.post("/", async (req: Request, res: Response): Promise<void> => {
+  const { messages, agentType } = req.body as {
+    messages: { role: "user" | "assistant"; content: string }[];
+    agentType?: string;
+  };
 
-    if (!Array.isArray(messages) || messages.length === 0) {
-      res.status(400).json({ error: "messages array is required" });
-      return;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "messages array is required" });
+    return;
+  }
+
+  const hint = agentType ? (AGENT_HINTS[agentType] ?? "") : "";
+  const systemPrompt = SYSTEM_BASE + hint;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  try {
+    const { apiKey, baseUrl } = getDeepSeekConfig();
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        stream: true,
+        max_tokens: 8192,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`DeepSeek API error ${response.status}: ${err}`);
     }
 
-    const hint = agentType ? (AGENT_HINTS[agentType] ?? "") : "";
-    const systemPrompt = SYSTEM_BASE + hint;
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No response body");
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-    try {
-      const client = getClient();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-      const stream = client.messages.stream({
-        model: "claude-opus-4-8",
-        max_tokens: 8192,
-        system: systemPrompt,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      });
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
 
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          res.write(
-            `data: ${JSON.stringify({ content: event.delta.text })}\n\n`
-          );
-        }
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        const data = trimmed.slice(6);
+        if (data === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: { delta?: { content?: string } }[];
+          };
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        } catch {}
       }
+    }
 
-      res.write("data: [DONE]\n\n");
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    req.log?.error({ err: message }, "Chat route error");
+    if (!res.headersSent) {
+      res.status(500).json({ error: message });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
       res.end();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      req.log?.error({ err: message }, "Chat route error");
-      if (!res.headersSent) {
-        res.status(500).json({ error: message });
-      } else {
-        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
-        res.end();
-      }
     }
   }
-);
+});
 
 export default router;

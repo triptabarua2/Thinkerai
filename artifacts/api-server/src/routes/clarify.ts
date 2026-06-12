@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { Router, type Request, type Response } from "express";
 
 const router = Router();
@@ -26,7 +25,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
       "id": "<short_key>",
       "question": "<the question>",
       "type": "<one of: choice, boolean, text>",
-      "options": ["<option1>", "<option2>"] 
+      "options": ["<option1>", "<option2>"]
     }
   ]
 }
@@ -43,10 +42,10 @@ Examples:
 - "Research climate change" → confidence: 55, needs clarification (aspect? depth? format?)
 - "Fix my code" → confidence: 10, needs clarification (which code? what error?)`;
 
-function getClient(): Anthropic {
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-  return new Anthropic({ apiKey });
+function getDeepSeekConfig() {
+  const apiKey = process.env["DEEPSEEK_API_KEY"];
+  if (!apiKey) throw new Error("DEEPSEEK_API_KEY environment variable is not set");
+  return { apiKey, baseUrl: "https://api.deepseek.com/v1" };
 }
 
 export interface ClarifyResponse {
@@ -75,7 +74,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const client = getClient();
+    const { apiKey, baseUrl } = getDeepSeekConfig();
 
     const contextNote =
       conversationHistory && conversationHistory.length > 0
@@ -88,15 +87,32 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const userPrompt = `Analyze this user request and return JSON:\n\nUser message: "${message}"${contextNote}`;
 
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 1024,
-      system: CLARIFY_SYSTEM,
-      messages: [{ role: "user", content: userPrompt }],
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        max_tokens: 1024,
+        messages: [
+          { role: "system", content: CLARIFY_SYSTEM },
+          { role: "user", content: userPrompt },
+        ],
+      }),
     });
 
-    const raw =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`DeepSeek API error ${response.status}: ${err}`);
+    }
+
+    const json = await response.json() as {
+      choices: { message: { content: string } }[];
+    };
+
+    const raw = json.choices?.[0]?.message?.content ?? "";
 
     let parsed: ClarifyResponse;
     try {
