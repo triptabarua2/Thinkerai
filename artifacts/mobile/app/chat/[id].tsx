@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AgentPanel } from "@/components/AgentPanel";
 import { ChatInput } from "@/components/ChatInput";
+import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { useApp } from "@/context/AppContext";
@@ -30,6 +31,12 @@ function genId(): string {
   return `msg-${Date.now()}-${msgCounter}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+type ClarifyState =
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "needed"; data: ClarifyData; pendingMessage: string }
+  | { status: "skipped" };
+
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -41,6 +48,7 @@ export default function ChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
+  const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
   const initializedRef = useRef(false);
 
   useEffect(() => {
@@ -51,11 +59,74 @@ export default function ChatScreen() {
     }
   }, [conv]);
 
+  async function checkClarification(text: string): Promise<ClarifyData | null> {
+    try {
+      const baseUrl = getBaseUrl();
+      const history = messages
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const res = await fetch(`${baseUrl}api/clarify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, conversationHistory: history }),
+      });
+
+      if (!res.ok) return null;
+      const data = (await res.json()) as ClarifyData;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
   async function handleSend(text: string) {
     if (isStreaming || !id) return;
 
+    // First message only: run clarification check
+    if (messages.length === 0 && clarifyState.status === "idle") {
+      setClarifyState({ status: "checking" });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const clarify = await checkClarification(text);
+
+      if (clarify && clarify.needs_clarification && clarify.questions.length > 0) {
+        setClarifyState({ status: "needed", data: clarify, pendingMessage: text });
+        return;
+      }
+
+      setClarifyState({ status: "skipped" });
+    }
+
+    await sendMessage(text);
+  }
+
+  async function handleClarifyProceed(answers: Record<string, string>) {
+    if (clarifyState.status !== "needed") return;
+    const { pendingMessage, data } = clarifyState;
+
+    const answerLines = data.questions
+      .map((q) => `- ${q.question}: **${answers[q.id]}**`)
+      .join("\n");
+
+    const enrichedMessage = `${pendingMessage}\n\n**My answers to clarifying questions:**\n${answerLines}`;
+
+    setClarifyState({ status: "skipped" });
+    await sendMessage(enrichedMessage, pendingMessage);
+  }
+
+  function handleClarifySkip() {
+    if (clarifyState.status !== "needed") return;
+    const pending = clarifyState.pendingMessage;
+    setClarifyState({ status: "skipped" });
+    sendMessage(pending);
+  }
+
+  async function sendMessage(text: string, displayText?: string) {
+    if (!id) return;
+
     const currentMessages = [...messages];
-    const detected = detectAgentType(text);
+    const detected = detectAgentType(displayText ?? text);
     if (messages.length === 0) {
       setAgentType(detected);
     }
@@ -63,7 +134,7 @@ export default function ChatScreen() {
     const userMsg: Message = {
       id: genId(),
       role: "user",
-      content: text,
+      content: displayText ?? text,
       timestamp: Date.now(),
     };
 
@@ -159,7 +230,7 @@ export default function ChatScreen() {
 
       const newTitle =
         conv?.title === "New Chat" || conv?.title === `${AGENTS[activeAgent].name} Session`
-          ? text.slice(0, 40) + (text.length > 40 ? "..." : "")
+          ? (displayText ?? text).slice(0, 40) + ((displayText ?? text).length > 40 ? "..." : "")
           : conv?.title ?? "Chat";
 
       await updateConversation(id, {
@@ -183,10 +254,12 @@ export default function ChatScreen() {
   }
 
   const reversedMessages = [...messages].reverse();
+  const isClarifying =
+    clarifyState.status === "checking" || clarifyState.status === "needed";
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Custom Header */}
+      {/* Header */}
       <View
         style={[
           styles.header,
@@ -208,6 +281,14 @@ export default function ChatScreen() {
           {conv?.title ?? "Chat"}
         </Text>
 
+        {/* Clarify status indicator */}
+        {clarifyState.status === "checking" && (
+          <View style={[styles.clarifyBadge, { backgroundColor: "#7B61FF20" }]}>
+            <Feather name="cpu" size={12} color="#7B61FF" />
+            <Text style={styles.clarifyBadgeText}>Analyzing…</Text>
+          </View>
+        )}
+
         <TouchableOpacity style={[styles.headerBtn, { backgroundColor: colors.card }]}>
           <Feather name="more-horizontal" size={18} color={colors.text} />
         </TouchableOpacity>
@@ -227,23 +308,37 @@ export default function ChatScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
           inverted={messages.length > 0}
-          ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
+          ListHeaderComponent={
+            <>
+              {showTyping && <TypingIndicator />}
+              {clarifyState.status === "needed" && (
+                <ClarificationCard
+                  data={clarifyState.data}
+                  originalMessage={clarifyState.pendingMessage}
+                  onProceed={handleClarifyProceed}
+                  onSkip={handleClarifySkip}
+                />
+              )}
+            </>
+          }
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View
-                style={[styles.emptyIcon, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <Feather name="cpu" size={28} color={colors.primary} />
+            clarifyState.status === "needed" ? null : (
+              <View style={styles.empty}>
+                <View
+                  style={[styles.emptyIcon, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <Feather name="cpu" size={28} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Ready to help</Text>
+                <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+                  Ask anything — I can plan, research,{"\n"}code, create, and execute tasks
+                </Text>
               </View>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>Ready to help</Text>
-              <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                Ask anything — I can plan, research,{"\n"}code, create, and execute tasks
-              </Text>
-            </View>
+            )
           }
         />
 
@@ -257,7 +352,7 @@ export default function ChatScreen() {
             },
           ]}
         >
-          <ChatInput onSend={handleSend} disabled={isStreaming} />
+          <ChatInput onSend={handleSend} disabled={isStreaming || isClarifying} />
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -265,12 +360,8 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  root: { flex: 1 },
+  flex: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -297,6 +388,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  clarifyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  clarifyBadgeText: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    color: "#7B61FF",
+    letterSpacing: 0.3,
   },
   messageList: {
     paddingVertical: 12,
