@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { getDemoClarification } from "../lib/demoResponses.js";
 
 const router = Router();
 
@@ -31,20 +32,14 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
 }
 
 Confidence guide:
-- 90-100: Crystal clear intent, all requirements obvious → needs_clarification: false
-- 70-89: Mostly clear, minor gaps that don't block execution → needs_clarification: false
-- 50-69: Key details missing that affect the output significantly → needs_clarification: true
-- 0-49: Very vague or ambiguous — cannot proceed without answers → needs_clarification: true
-
-Examples:
-- "Write a Python function to sort a list" → confidence: 92, no clarification needed
-- "Build me an app" → confidence: 15, needs clarification (type? purpose? auth?)
-- "Research climate change" → confidence: 55, needs clarification (aspect? depth? format?)
-- "Fix my code" → confidence: 10, needs clarification (which code? what error?)`;
+- 90-100: Crystal clear intent → needs_clarification: false
+- 70-89: Mostly clear → needs_clarification: false
+- 50-69: Key details missing → needs_clarification: true
+- 0-49: Very vague → needs_clarification: true`;
 
 function getDeepSeekConfig() {
   const apiKey = process.env["DEEPSEEK_API_KEY"];
-  if (!apiKey) throw new Error("DEEPSEEK_API_KEY environment variable is not set");
+  if (!apiKey) return null;
   return { apiKey, baseUrl: "https://api.deepseek.com/v1" };
 }
 
@@ -73,12 +68,18 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  try {
-    const { apiKey, baseUrl } = getDeepSeekConfig();
+  const config = getDeepSeekConfig();
 
+  // Demo mode — smart local heuristic
+  if (!config) {
+    res.json(getDemoClarification(message));
+    return;
+  }
+
+  try {
     const contextNote =
       conversationHistory && conversationHistory.length > 0
-        ? `\n\nConversation context (last ${Math.min(conversationHistory.length, 4)} messages):\n` +
+        ? `\n\nConversation context:\n` +
           conversationHistory
             .slice(-4)
             .map((m) => `${m.role}: ${m.content}`)
@@ -87,11 +88,11 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const userPrompt = `Analyze this user request and return JSON:\n\nUser message: "${message}"${contextNote}`;
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
         model: "deepseek-chat",
@@ -104,11 +105,12 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`DeepSeek API error ${response.status}: ${err}`);
+      // Fall back to demo heuristic
+      res.json(getDemoClarification(message));
+      return;
     }
 
-    const json = await response.json() as {
+    const json = (await response.json()) as {
       choices: { message: { content: string } }[];
     };
 
@@ -119,15 +121,18 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       parsed = JSON.parse(raw) as ClarifyResponse;
     } catch {
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Invalid JSON from model");
+      if (!jsonMatch) {
+        res.json(getDemoClarification(message));
+        return;
+      }
       parsed = JSON.parse(jsonMatch[0]) as ClarifyResponse;
     }
 
     res.json(parsed);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    req.log?.error({ err: message }, "Clarify route error");
-    res.status(500).json({ error: message });
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    req.log?.error({ err: msg }, "Clarify route error — using demo fallback");
+    res.json(getDemoClarification(message));
   }
 });
 

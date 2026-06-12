@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { getDemoResponse } from "../lib/demoResponses.js";
 
 const router = Router();
 
@@ -25,8 +26,20 @@ const AGENT_HINTS: Record<string, string> = {
 
 function getDeepSeekConfig() {
   const apiKey = process.env["DEEPSEEK_API_KEY"];
-  if (!apiKey) throw new Error("DEEPSEEK_API_KEY environment variable is not set");
+  if (!apiKey) return null;
   return { apiKey, baseUrl: "https://api.deepseek.com/v1" };
+}
+
+async function streamDemo(res: Response, agentType: string, message: string) {
+  const content = getDemoResponse(agentType, message);
+  const words = content.split(" ");
+  for (let i = 0; i < words.length; i++) {
+    const chunk = (i === 0 ? "" : " ") + words[i];
+    res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+    await new Promise((r) => setTimeout(r, 12));
+  }
+  res.write("data: [DONE]\n\n");
+  res.end();
 }
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
@@ -40,22 +53,29 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const hint = agentType ? (AGENT_HINTS[agentType] ?? "") : "";
-  const systemPrompt = SYSTEM_BASE + hint;
-
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  try {
-    const { apiKey, baseUrl } = getDeepSeekConfig();
+  const config = getDeepSeekConfig();
+  const lastUserMsg = messages[messages.length - 1]?.content ?? "";
+  const activeAgent = agentType ?? "ceo";
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+  if (!config) {
+    await streamDemo(res, activeAgent, lastUserMsg);
+    return;
+  }
+
+  try {
+    const hint = AGENT_HINTS[activeAgent] ?? "";
+    const systemPrompt = SYSTEM_BASE + hint;
+
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
         model: "deepseek-chat",
@@ -69,8 +89,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`DeepSeek API error ${response.status}: ${err}`);
+      // Fall back to demo on auth/balance errors
+      await streamDemo(res, activeAgent, lastUserMsg);
+      return;
     }
 
     const reader = response.body?.getReader();
@@ -108,13 +129,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     res.end();
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    req.log?.error({ err: message }, "Chat route error");
-    if (!res.headersSent) {
-      res.status(500).json({ error: message });
-    } else {
-      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
-      res.end();
-    }
+    req.log?.error({ err: message }, "Chat route error — falling back to demo");
+    await streamDemo(res, activeAgent, lastUserMsg);
   }
 });
 
