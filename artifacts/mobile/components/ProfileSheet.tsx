@@ -5,9 +5,11 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,7 +35,9 @@ const MENU_ITEMS = [
 export function ProfileSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(700)).current;
+  const { height: screenHeight } = useWindowDimensions();
+  const SHEET_HEIGHT = Math.round(screenHeight * 0.5);
+  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -54,7 +58,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
     } else {
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: 700,
+          toValue: SHEET_HEIGHT,
           duration: 250,
           useNativeDriver: true,
         }),
@@ -88,6 +92,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
         style={[
           styles.sheet,
           {
+            height: SHEET_HEIGHT,
             backgroundColor: colors.card,
             borderColor: colors.border,
             paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 8,
@@ -129,7 +134,11 @@ export function ProfileSheet({ visible, onClose }: Props) {
         </View>
 
         {/* Menu */}
-        <View style={styles.menu}>
+        <ScrollView
+          style={styles.menu}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           {MENU_ITEMS.map((item) => (
             <TouchableOpacity
               key={item.label}
@@ -144,7 +153,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
               <Feather name="chevron-right" size={14} color={colors.textTertiary} />
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
