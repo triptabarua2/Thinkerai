@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from "react";
 import {
   Animated,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -38,10 +39,32 @@ export function ProfileSheet({ visible, onClose }: Props) {
   const { height: screenHeight } = useWindowDimensions();
   const SHEET_HEIGHT = Math.round(screenHeight * 0.78);
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  function animateClose() {
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: SHEET_HEIGHT,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dragY, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onClose());
+  }
 
   useEffect(() => {
     if (visible) {
+      dragY.setValue(0);
       Animated.parallel([
         Animated.spring(translateY, {
           toValue: 0,
@@ -58,10 +81,9 @@ export function ProfileSheet({ visible, onClose }: Props) {
       ]).start();
     } else {
       Animated.parallel([
-        Animated.spring(translateY, {
+        Animated.timing(translateY, {
           toValue: SHEET_HEIGHT,
-          damping: 22,
-          stiffness: 260,
+          duration: 280,
           useNativeDriver: true,
         }),
         Animated.timing(overlayOpacity, {
@@ -71,7 +93,28 @@ export function ProfileSheet({ visible, onClose }: Props) {
         }),
       ]).start();
     }
-  }, [visible, translateY, overlayOpacity]);
+  }, [visible]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) dragY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 100 || g.vy > 0.8) {
+          animateClose();
+        } else {
+          Animated.spring(dragY, {
+            toValue: 0,
+            damping: 20,
+            stiffness: 300,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   return (
     <Modal
@@ -81,7 +124,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.backdrop} onPress={animateClose}>
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
@@ -98,12 +141,14 @@ export function ProfileSheet({ visible, onClose }: Props) {
             backgroundColor: colors.card,
             borderColor: colors.border,
             paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 8,
-            transform: [{ translateY }],
+            transform: [{ translateY: Animated.add(translateY, dragY) }],
           },
         ]}
       >
-        {/* Handle */}
-        <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        {/* Handle — drag area */}
+        <View style={styles.handleArea} {...panResponder.panHandlers}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        </View>
 
         {/* Profile Header */}
         <View style={styles.profileHeader}>
@@ -177,12 +222,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     paddingTop: 12,
   },
+  handleArea: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
   handle: {
-    width: 36,
+    width: 40,
     height: 4,
     borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 20,
   },
   profileHeader: {
     flexDirection: "row",
