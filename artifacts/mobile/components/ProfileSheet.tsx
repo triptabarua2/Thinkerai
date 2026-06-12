@@ -36,7 +36,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const SHEET_HEIGHT = Math.round(screenHeight * 0.5);
+  const SHEET_HEIGHT = Math.round(screenHeight * 0.78);
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
@@ -45,26 +45,28 @@ export function ProfileSheet({ visible, onClose }: Props) {
       Animated.parallel([
         Animated.spring(translateY, {
           toValue: 0,
-          damping: 24,
-          stiffness: 320,
+          damping: 18,
+          stiffness: 180,
+          mass: 1,
           useNativeDriver: true,
         }),
         Animated.timing(overlayOpacity, {
           toValue: 1,
-          duration: 200,
+          duration: 250,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(translateY, {
+        Animated.spring(translateY, {
           toValue: SHEET_HEIGHT,
-          duration: 250,
+          damping: 22,
+          stiffness: 260,
           useNativeDriver: true,
         }),
         Animated.timing(overlayOpacity, {
           toValue: 0,
-          duration: 200,
+          duration: 220,
           useNativeDriver: true,
         }),
       ]).start();
