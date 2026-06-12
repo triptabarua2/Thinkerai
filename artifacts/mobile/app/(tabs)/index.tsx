@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,6 +38,8 @@ const QUICK_ACTIONS: {
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = (screenWidth - 32 - 20) / 3;
   const {
     conversations,
     createConversation,
@@ -58,8 +61,6 @@ export default function HomeScreen() {
     const id = await createConversation("New Chat");
     router.push(`/chat/${id}` as any);
   }
-
-  const recentConvs = conversations.slice(0, 5);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -118,7 +119,7 @@ export default function HomeScreen() {
                 key={action.id}
                 style={[
                   styles.actionCard,
-                  { backgroundColor: colors.card, borderColor: colors.border },
+                  { width: cardWidth, backgroundColor: colors.card, borderColor: colors.border },
                 ]}
                 onPress={() => handleQuickAction(action.agentType)}
                 activeOpacity={0.7}
@@ -138,59 +139,6 @@ export default function HomeScreen() {
             );
           })}
         </View>
-
-        {/* Recent Chats */}
-        {recentConvs.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionRow}>
-              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                RECENT CHATS
-              </Text>
-              <TouchableOpacity onPress={() => setSidebarOpen(true)}>
-                <Text style={[styles.seeAll, { color: colors.primary }]}>All chats</Text>
-              </TouchableOpacity>
-            </View>
-            {recentConvs.map((conv) => {
-              const agent = conv.agentType ? AGENTS[conv.agentType] : null;
-              return (
-                <TouchableOpacity
-                  key={conv.id}
-                  style={[
-                    styles.convItem,
-                    { backgroundColor: colors.card, borderColor: colors.border },
-                  ]}
-                  onPress={() => router.push(`/chat/${conv.id}` as any)}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    style={[
-                      styles.convIcon,
-                      { backgroundColor: agent ? agent.color + "22" : colors.border },
-                    ]}
-                  >
-                    <Feather
-                      name={(agent?.icon ?? "message-circle") as any}
-                      size={14}
-                      color={agent?.color ?? colors.textSecondary}
-                    />
-                  </View>
-                  <View style={styles.convInfo}>
-                    <Text
-                      style={[styles.convTitle, { color: colors.text }]}
-                      numberOfLines={1}
-                    >
-                      {conv.title}
-                    </Text>
-                    <Text style={[styles.convMeta, { color: colors.textTertiary }]}>
-                      {conv.messages.length} {conv.messages.length === 1 ? "message" : "messages"}
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={14} color={colors.textTertiary} />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
 
         {/* Agent Fleet */}
         <Text style={[styles.sectionLabel, { color: colors.textTertiary, marginTop: 24 }]}>
@@ -293,16 +241,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 10,
   },
-  sectionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  seeAll: {
-    fontSize: 13,
-    fontWeight: "500" as const,
-  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -310,11 +248,10 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   actionCard: {
-    width: "48%",
     borderRadius: 16,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
-    gap: 8,
+    gap: 6,
   },
   actionIcon: {
     width: 36,
@@ -328,36 +265,6 @@ const styles = StyleSheet.create({
     fontWeight: "600" as const,
   },
   actionDesc: {
-    fontSize: 12,
-  },
-  section: {
-    marginBottom: 8,
-  },
-  convItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  convIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  convInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  convTitle: {
-    fontSize: 14,
-    fontWeight: "500" as const,
-  },
-  convMeta: {
     fontSize: 12,
   },
   agentsWrap: {
