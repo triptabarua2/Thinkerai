@@ -63,9 +63,6 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <ProfileSheet visible={profileSheetOpen} onClose={() => setProfileSheetOpen(false)} />
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -229,6 +226,10 @@ export default function HomeScreen() {
       >
         <Feather name="user" size={20} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Overlays — rendered last so they sit above all content */}
+      <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <ProfileSheet visible={profileSheetOpen} onClose={() => setProfileSheetOpen(false)} />
     </View>
   );
 }
