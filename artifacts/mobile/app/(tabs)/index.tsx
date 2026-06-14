@@ -17,7 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { useApp } from "@/context/AppContext";
-import { AGENTS, type AgentType } from "@/lib/agents";
+import { type AgentType } from "@/lib/agents";
+import { AGENTS } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 
 const QUICK_ACTIONS: {
@@ -148,24 +149,6 @@ export default function HomeScreen() {
           })}
         </View>
 
-        {/* Agent Fleet */}
-        <Text style={[styles.sectionLabel, { color: colors.textTertiary, marginTop: 24 }]}>
-          AGENT FLEET
-        </Text>
-        <View style={styles.agentsWrap}>
-          {Object.values(AGENTS).map((agent) => (
-            <View
-              key={agent.id}
-              style={[styles.agentChip, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.agentDot, { backgroundColor: agent.color }]} />
-              <Feather name={agent.icon as any} size={12} color={agent.color} />
-              <Text style={[styles.agentName, { color: colors.textSecondary }]}>
-                {agent.shortName}
-              </Text>
-            </View>
-          ))}
-        </View>
       </ScrollView>
 
       {/* Bottom Chat Bar */}
@@ -390,28 +373,5 @@ const styles = StyleSheet.create({
   },
   actionDesc: {
     fontSize: 12,
-  },
-  agentsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  agentChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  agentDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  agentName: {
-    fontSize: 12,
-    fontWeight: "500" as const,
   },
 });
