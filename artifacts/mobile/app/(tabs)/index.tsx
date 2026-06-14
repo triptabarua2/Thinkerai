@@ -77,7 +77,7 @@ export default function HomeScreen() {
           styles.content,
           {
             paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 8,
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 80,
+            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 110,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -213,7 +213,7 @@ function HomeChatBar({
         {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          paddingBottom: bottomPad + 32,
+          paddingBottom: bottomPad + 8,
         },
       ]}
     >
@@ -254,6 +254,10 @@ function HomeChatBar({
 
 const barStyles = StyleSheet.create({
   wrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
