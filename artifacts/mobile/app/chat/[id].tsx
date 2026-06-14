@@ -40,7 +40,7 @@ type ClarifyState =
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, q } = useLocalSearchParams<{ id: string; q?: string }>();
   const { getConversation, updateConversation } = useApp();
 
   const conv = getConversation(id ?? "");
@@ -50,6 +50,7 @@ export default function ChatScreen() {
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
   const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
   const initializedRef = useRef(false);
+  const autoSentRef = useRef(false);
 
   useEffect(() => {
     if (conv?.messages && !initializedRef.current) {
@@ -80,6 +81,18 @@ export default function ChatScreen() {
     }
   }
 
+  // Auto-send message passed from home screen via ?q= param
+  const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
+
+  useEffect(() => {
+    if (q && !autoSentRef.current) {
+      autoSentRef.current = true;
+      const decoded = decodeURIComponent(q);
+      // Small delay to let the screen render first
+      setTimeout(() => handleSendRef.current(decoded), 150);
+    }
+  }, [q]);
+
   async function handleSend(text: string) {
     if (isStreaming || !id) return;
 
@@ -100,6 +113,8 @@ export default function ChatScreen() {
 
     await sendMessage(text);
   }
+
+  handleSendRef.current = handleSend;
 
   async function handleClarifyProceed(answers: Record<string, string>) {
     if (clarifyState.status !== "needed") return;

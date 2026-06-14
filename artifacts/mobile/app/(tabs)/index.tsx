@@ -1,19 +1,19 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AgentPanel } from "@/components/AgentPanel";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { useApp } from "@/context/AppContext";
@@ -62,6 +62,13 @@ export default function HomeScreen() {
     router.push(`/chat/${id}` as any);
   }
 
+  async function handleStartChat(text: string) {
+    if (!text.trim()) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const id = await createConversation("New Chat");
+    router.push(`/chat/${id}?q=${encodeURIComponent(text.trim())}` as any);
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -74,6 +81,7 @@ export default function HomeScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={styles.header}>
@@ -160,20 +168,13 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Profile FAB */}
-      <TouchableOpacity
-        style={[
-          styles.fab,
-          {
-            backgroundColor: colors.primary,
-            bottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 20,
-          },
-        ]}
-        onPress={() => setProfileSheetOpen(true)}
-        activeOpacity={0.8}
-      >
-        <Feather name="user" size={20} color="#FFFFFF" />
-      </TouchableOpacity>
+      {/* Bottom Chat Bar */}
+      <HomeChatBar
+        colors={colors}
+        insets={insets}
+        onSend={handleStartChat}
+        onProfile={() => setProfileSheetOpen(true)}
+      />
 
       {/* Overlays — rendered last so they sit above all content */}
       <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -181,6 +182,120 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+function HomeChatBar({
+  colors,
+  insets,
+  onSend,
+  onProfile,
+}: {
+  colors: ReturnType<typeof useColors>;
+  insets: ReturnType<typeof useSafeAreaInsets>;
+  onSend: (text: string) => void;
+  onProfile: () => void;
+}) {
+  const [text, setText] = useState("");
+  const canSend = text.trim().length > 0;
+
+  function handleSend() {
+    if (!canSend) return;
+    const msg = text.trim();
+    setText("");
+    onSend(msg);
+  }
+
+  const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+
+  return (
+    <View
+      style={[
+        barStyles.wrap,
+        {
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
+          paddingBottom: bottomPad + 8,
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={[barStyles.profileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={onProfile}
+        activeOpacity={0.75}
+      >
+        <Feather name="user" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
+
+      <View style={[barStyles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TextInput
+          style={[barStyles.input, { color: colors.text }]}
+          value={text}
+          onChangeText={setText}
+          placeholder="Ask Think AI anything..."
+          placeholderTextColor={colors.textTertiary}
+          multiline
+          maxLength={2000}
+          onSubmitEditing={handleSend}
+          blurOnSubmit={false}
+          returnKeyType="send"
+        />
+        <TouchableOpacity
+          style={[barStyles.sendBtn, { backgroundColor: canSend ? colors.primary : colors.border }]}
+          onPress={handleSend}
+          disabled={!canSend}
+          activeOpacity={0.8}
+        >
+          <Feather name="arrow-up" size={16} color={canSend ? "#FFFFFF" : colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const barStyles = StyleSheet.create({
+  wrap: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  profileBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    marginBottom: 2,
+  },
+  inputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    maxHeight: 100,
+    paddingTop: 5,
+    paddingBottom: 5,
+  },
+  sendBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+});
 
 const styles = StyleSheet.create({
   root: {
@@ -289,19 +404,5 @@ const styles = StyleSheet.create({
   agentName: {
     fontSize: 12,
     fontWeight: "500" as const,
-  },
-  fab: {
-    position: "absolute",
-    right: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#7B61FF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
 });
