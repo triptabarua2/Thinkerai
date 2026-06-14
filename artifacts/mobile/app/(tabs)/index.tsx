@@ -213,7 +213,7 @@ function HomeChatBar({
         {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          paddingBottom: bottomPad + 16,
+          paddingBottom: bottomPad + 32,
         },
       ]}
     >
