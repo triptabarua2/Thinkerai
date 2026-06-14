@@ -213,7 +213,7 @@ function HomeChatBar({
         {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          paddingBottom: bottomPad + 8,
+          paddingBottom: bottomPad + 16,
         },
       ]}
     >
@@ -238,14 +238,15 @@ function HomeChatBar({
           blurOnSubmit={false}
           returnKeyType="send"
         />
-        <TouchableOpacity
-          style={[barStyles.sendBtn, { backgroundColor: canSend ? colors.primary : colors.border }]}
-          onPress={handleSend}
-          disabled={!canSend}
-          activeOpacity={0.8}
-        >
-          <Feather name="arrow-up" size={16} color={canSend ? "#FFFFFF" : colors.textTertiary} />
-        </TouchableOpacity>
+        {canSend && (
+          <TouchableOpacity
+            style={[barStyles.sendBtn, { backgroundColor: colors.primary }]}
+            onPress={handleSend}
+            activeOpacity={0.8}
+          >
+            <Feather name="arrow-up" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -255,15 +256,15 @@ const barStyles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 8,
+    gap: 10,
   },
   profileBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -273,10 +274,10 @@ const barStyles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    borderRadius: 24,
+    borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
     gap: 8,
   },
   input: {
@@ -284,8 +285,8 @@ const barStyles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     maxHeight: 100,
-    paddingTop: 5,
-    paddingBottom: 5,
+    paddingTop: 3,
+    paddingBottom: 3,
   },
   sendBtn: {
     width: 32,
@@ -293,7 +294,7 @@ const barStyles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 2,
+    marginBottom: 1,
   },
 });
 
