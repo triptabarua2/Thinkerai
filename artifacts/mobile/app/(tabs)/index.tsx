@@ -210,22 +210,18 @@ function HomeChatBar({
     <View
       style={[
         barStyles.wrap,
-        {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          paddingBottom: bottomPad + 8,
-        },
+        { paddingBottom: bottomPad + 12 },
       ]}
     >
       <TouchableOpacity
-        style={[barStyles.profileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={[barStyles.profileBtn, { backgroundColor: colors.card }]}
         onPress={onProfile}
         activeOpacity={0.75}
       >
         <Feather name="user" size={18} color={colors.textSecondary} />
       </TouchableOpacity>
 
-      <View style={[barStyles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[barStyles.inputWrap, { backgroundColor: colors.card }]}>
         <TextInput
           style={[barStyles.input, { color: colors.text }]}
           value={text}
@@ -262,27 +258,35 @@ const barStyles = StyleSheet.create({
     alignItems: "flex-end",
     paddingHorizontal: 16,
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 10,
+    backgroundColor: "transparent",
   },
   profileBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
     marginBottom: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   inputWrap: {
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
     borderRadius: 999,
-    borderWidth: 1,
     paddingHorizontal: 18,
     paddingVertical: 8,
     gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   input: {
     flex: 1,
