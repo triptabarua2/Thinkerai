@@ -29,8 +29,8 @@ const QUICK_ACTIONS: {
 }[] = [
   { id: "research", label: "Research", icon: "search", agentType: "research", desc: "Deep research" },
   { id: "code", label: "Code", icon: "code", agentType: "coding", desc: "Build software" },
-  { id: "create", label: "Create", icon: "edit-3", agentType: "content", desc: "Write content" },
-  { id: "analyze", label: "Analyze", icon: "bar-chart-2", agentType: "analysis", desc: "Data insights" },
+  { id: "create", label: "Create", icon: "edit-3", agentType: "report", desc: "Write content" },
+  { id: "analyze", label: "Analyze", icon: "bar-chart-2", agentType: "report", desc: "Data insights" },
   { id: "automate", label: "Automate", icon: "zap", agentType: "automation", desc: "Build workflows" },
   { id: "plan", label: "Plan", icon: "map", agentType: "planner", desc: "Strategy & goals" },
 ];

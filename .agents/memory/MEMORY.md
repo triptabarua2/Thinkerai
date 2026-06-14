@@ -1,0 +1,1 @@
+- [Agent system architecture](agent-system.md) — 17 agents in agents.ts; Claude primary in chat.ts; systemHint renamed to capability

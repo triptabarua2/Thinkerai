@@ -310,7 +310,11 @@ export default function ChatScreen() {
       </View>
 
       {/* Agent Status */}
-      <AgentPanel agentType={agentType} isStreaming={isStreaming} />
+      <AgentPanel
+        agentType={agentType}
+        isStreaming={isStreaming}
+        onAgentChange={(a) => setAgentType(a)}
+      />
 
       {/* Chat */}
       <KeyboardAvoidingView
