@@ -18,6 +18,7 @@ import { AgentPanel } from "@/components/AgentPanel";
 import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
 import { MessageBubble } from "@/components/MessageBubble";
+import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
@@ -37,6 +38,22 @@ type ClarifyState =
   | { status: "needed"; data: ClarifyData; pendingMessage: string }
   | { status: "skipped" };
 
+const PIPELINE_AGENTS = [
+  { id: "intent",        label: "Intent analysis",     icon: "compass" },
+  { id: "clarification", label: "Requirements check",  icon: "help-circle" },
+  { id: "planner",       label: "Execution plan",      icon: "map" },
+  { id: "research",      label: "Research",            icon: "search" },
+  { id: "builder",       label: "Building",            icon: "code" },
+  { id: "reviewer",      label: "Quality review",      icon: "check-circle" },
+  { id: "critic",        label: "Independent review",  icon: "alert-circle" },
+  { id: "judge",         label: "Final judgment",      icon: "award" },
+  { id: "consensus",     label: "Consensus vote",      icon: "users" },
+];
+
+function buildInitialSteps(): AgentStep[] {
+  return PIPELINE_AGENTS.map((a) => ({ ...a, status: "idle" as const }));
+}
+
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -49,6 +66,12 @@ export default function ChatScreen() {
   const [showTyping, setShowTyping] = useState(false);
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
   const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
+
+  // Pipeline state
+  const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>(buildInitialSteps());
+  const [pipelineActive, setPipelineActive] = useState(false);
+  const [pipelineLabel, setPipelineLabel] = useState("");
+
   const initializedRef = useRef(false);
   const autoSentRef = useRef(false);
 
@@ -60,57 +83,26 @@ export default function ChatScreen() {
     }
   }, [conv]);
 
-  async function checkClarification(text: string): Promise<ClarifyData | null> {
-    try {
-      const baseUrl = getBaseUrl();
-      const history = messages
-        .slice(-6)
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      const res = await fetch(`${baseUrl}api/clarify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, conversationHistory: history }),
-      });
-
-      if (!res.ok) return null;
-      const data = (await res.json()) as ClarifyData;
-      return data;
-    } catch {
-      return null;
-    }
-  }
-
-  // Auto-send message passed from home screen via ?q= param
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (q && !autoSentRef.current) {
       autoSentRef.current = true;
       const decoded = decodeURIComponent(q);
-      // Small delay to let the screen render first
       setTimeout(() => handleSendRef.current(decoded), 150);
     }
   }, [q]);
 
+  function updateStepStatus(agentId: string, status: AgentStep["status"], label?: string) {
+    setPipelineSteps((prev) =>
+      prev.map((s) =>
+        s.id === agentId ? { ...s, status, ...(label ? { label } : {}) } : s
+      )
+    );
+  }
+
   async function handleSend(text: string) {
     if (isStreaming || !id) return;
-
-    // First message only: run clarification check
-    if (messages.length === 0 && clarifyState.status === "idle") {
-      setClarifyState({ status: "checking" });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      const clarify = await checkClarification(text);
-
-      if (clarify && clarify.needs_clarification && clarify.questions.length > 0) {
-        setClarifyState({ status: "needed", data: clarify, pendingMessage: text });
-        return;
-      }
-
-      setClarifyState({ status: "skipped" });
-    }
-
     await sendMessage(text);
   }
 
@@ -124,8 +116,7 @@ export default function ChatScreen() {
       .map((q) => `- ${q.question}: **${answers[q.id]}**`)
       .join("\n");
 
-    const enrichedMessage = `${pendingMessage}\n\n**My answers to clarifying questions:**\n${answerLines}`;
-
+    const enrichedMessage = `${pendingMessage}\n\n**My answers:**\n${answerLines}`;
     setClarifyState({ status: "skipped" });
     await sendMessage(enrichedMessage, pendingMessage);
   }
@@ -142,9 +133,7 @@ export default function ChatScreen() {
 
     const currentMessages = [...messages];
     const detected = detectAgentType(displayText ?? text);
-    if (messages.length === 0) {
-      setAgentType(detected);
-    }
+    if (messages.length === 0) setAgentType(detected);
 
     const userMsg: Message = {
       id: genId(),
@@ -158,6 +147,11 @@ export default function ChatScreen() {
     setShowTyping(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    // Reset pipeline
+    setPipelineSteps(buildInitialSteps());
+    setPipelineActive(false);
+    setPipelineLabel("");
+
     const activeAgent = messages.length === 0 ? detected : agentType;
 
     try {
@@ -167,13 +161,13 @@ export default function ChatScreen() {
         { role: "user" as const, content: text },
       ];
 
-      const response = await fetch(`${baseUrl}api/chat`, {
+      const response = await fetch(`${baseUrl}api/pipeline`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        body: JSON.stringify({ messages: chatHistory, agentType: activeAgent }),
+        body: JSON.stringify({ messages: chatHistory }),
       });
 
       if (!response.ok) throw new Error(`Error: ${response.status}`);
@@ -186,6 +180,7 @@ export default function ChatScreen() {
       let buffer = "";
       let assistantAdded = false;
       const assistantId = genId();
+      let pipelineWasActive = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -199,32 +194,93 @@ export default function ChatScreen() {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6);
           if (data === "[DONE]") continue;
+
           try {
-            const parsed = JSON.parse(data) as { content?: string; error?: string };
-            if (parsed.content) {
-              fullContent += parsed.content;
-              if (!assistantAdded) {
-                setShowTyping(false);
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: assistantId,
-                    role: "assistant",
-                    content: fullContent,
-                    agentType: activeAgent,
-                    timestamp: Date.now(),
+            const event = JSON.parse(data) as Record<string, unknown>;
+
+            switch (event.type) {
+              case "agent_start": {
+                const agent = event.agent as string;
+                const label = event.label as string;
+                // Show pipeline UI for non-chat agents (planner, builder, etc.)
+                if (agent !== "intent") {
+                  if (!pipelineWasActive) {
+                    pipelineWasActive = true;
+                    setPipelineActive(true);
+                    setShowTyping(false);
+                  }
+                }
+                updateStepStatus(agent, "running", label);
+                setPipelineLabel(label);
+                break;
+              }
+
+              case "agent_done": {
+                const agent = event.agent as string;
+                updateStepStatus(agent, "done");
+                break;
+              }
+
+              case "pipeline_retry": {
+                const agent = event.agent as string;
+                updateStepStatus(agent, "retried");
+                break;
+              }
+
+              case "clarification_needed": {
+                const questions = event.questions as ClarifyData["questions"];
+                const intentType = (event.intent as string) ?? "task";
+                setClarifyState({
+                  status: "needed",
+                  data: {
+                    needs_clarification: true,
+                    confidence: 60,
+                    intent: `${intentType} request`,
+                    task_type: intentType,
+                    reason: "Need more information to proceed",
+                    questions,
                   },
-                ]);
-                assistantAdded = true;
-              } else {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    ...updated[updated.length - 1],
-                    content: fullContent,
-                  };
-                  return updated;
+                  pendingMessage: text,
                 });
+                setPipelineActive(false);
+                break;
+              }
+
+              case "content": {
+                const chunk = event.text as string;
+                if (chunk) {
+                  fullContent += chunk;
+                  if (!assistantAdded) {
+                    setShowTyping(false);
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        id: assistantId,
+                        role: "assistant",
+                        content: fullContent,
+                        agentType: activeAgent,
+                        timestamp: Date.now(),
+                      },
+                    ]);
+                    assistantAdded = true;
+                  } else {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = {
+                        ...updated[updated.length - 1],
+                        content: fullContent,
+                      };
+                      return updated;
+                    });
+                  }
+                }
+                break;
+              }
+
+              case "done": {
+                setPipelineActive(false);
+                setPipelineLabel("");
+                break;
               }
             }
           } catch {}
@@ -234,13 +290,15 @@ export default function ChatScreen() {
       const finalMessages = [
         ...currentMessages,
         userMsg,
-        {
-          id: assistantId,
-          role: "assistant" as const,
-          content: fullContent,
-          agentType: activeAgent,
-          timestamp: Date.now(),
-        },
+        ...(fullContent
+          ? [{
+              id: assistantId,
+              role: "assistant" as const,
+              content: fullContent,
+              agentType: activeAgent,
+              timestamp: Date.now(),
+            }]
+          : []),
       ];
 
       const newTitle =
@@ -253,8 +311,9 @@ export default function ChatScreen() {
         title: newTitle,
         agentType: activeAgent,
       });
-    } catch (err) {
+    } catch {
       setShowTyping(false);
+      setPipelineActive(false);
       const errMsg: Message = {
         id: genId(),
         role: "assistant",
@@ -296,13 +355,14 @@ export default function ChatScreen() {
           {conv?.title ?? "Chat"}
         </Text>
 
-        {/* Clarify status indicator */}
-        {clarifyState.status === "checking" && (
-          <View style={[styles.clarifyBadge, { backgroundColor: "#7B61FF20" }]}>
-            <Feather name="cpu" size={12} color="#7B61FF" />
-            <Text style={styles.clarifyBadgeText}>Analyzing…</Text>
+        {pipelineActive && pipelineLabel ? (
+          <View style={[styles.clarifyBadge, { backgroundColor: colors.primary + "20" }]}>
+            <Feather name="cpu" size={12} color={colors.primary} />
+            <Text style={[styles.clarifyBadgeText, { color: colors.primary }]} numberOfLines={1}>
+              {pipelineLabel}
+            </Text>
           </View>
-        )}
+        ) : null}
 
         <TouchableOpacity style={[styles.headerBtn, { backgroundColor: colors.card }]}>
           <Feather name="more-horizontal" size={18} color={colors.text} />
@@ -329,7 +389,10 @@ export default function ChatScreen() {
           inverted={messages.length > 0}
           ListHeaderComponent={
             <>
-              {showTyping && <TypingIndicator />}
+              {showTyping && !pipelineActive && <TypingIndicator />}
+              {pipelineActive && (
+                <PipelineProgress steps={pipelineSteps} visible={pipelineActive} />
+              )}
               {clarifyState.status === "needed" && (
                 <ClarificationCard
                   data={clarifyState.data}
@@ -386,7 +449,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     paddingBottom: 12,
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 8,
     borderBottomWidth: 1,
   },
   backBtn: {
@@ -415,12 +478,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    maxWidth: 140,
   },
   clarifyBadgeText: {
     fontSize: 11,
     fontWeight: "600" as const,
-    color: "#7B61FF",
     letterSpacing: 0.3,
+    flex: 1,
   },
   messageList: {
     paddingVertical: 12,
