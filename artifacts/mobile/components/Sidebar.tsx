@@ -212,7 +212,7 @@ export function Sidebar({ visible, onClose }: Props) {
         <View style={styles.panelHeader}>
           <View style={styles.logoRow}>
             <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.logoText, { color: colors.text }]}>Think AI</Text>
+            <Text style={[styles.logoText, { color: colors.text }]}>Thinker AI</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
             <Feather name="x" size={20} color={colors.textSecondary} />

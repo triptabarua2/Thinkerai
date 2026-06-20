@@ -156,7 +156,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
             <Text style={styles.avatarText}>T</Text>
           </View>
           <View>
-            <Text style={[styles.profileName, { color: colors.text }]}>Think AI User</Text>
+            <Text style={[styles.profileName, { color: colors.text }]}>Thinker AI User</Text>
             <View style={[styles.planBadge, { backgroundColor: colors.primary + "20" }]}>
               <View style={[styles.planDot, { backgroundColor: colors.primary }]} />
               <Text style={[styles.planText, { color: colors.primary }]}>Pro Plan</Text>

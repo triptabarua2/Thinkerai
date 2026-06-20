@@ -485,7 +485,7 @@ I'm your **Image Agent**. Here are optimized generation prompts:
 > Futuristic dark mode dashboard interface, glassmorphism, neon blue accents, floating elements, cinematic lighting, Figma mockup style, --ar 16:9
 
 **Logo Design:**
-> Modern geometric logo for AI startup "Think AI", minimal, dark background, gradient purple to blue, vector style, --no text
+> Modern geometric logo for AI startup "Thinker AI", minimal, dark background, gradient purple to blue, vector style, --no text
 
 > ⚡ Connect Claude API to generate prompts for your specific visual needs.`,
   ],
@@ -525,7 +525,7 @@ I'm your **Canvas Agent**. Here's a system architecture diagram:
 
 \`\`\`mermaid
 graph TB
-    User([👤 User]) --> App[Think AI App]
+    User([👤 User]) --> App[Thinker AI App]
     
     App --> CEO[🎯 CEO Agent]
     CEO --> Research[🔍 Research]
@@ -662,9 +662,9 @@ I'm your **Planner Agent**. Here's a strategic planning framework:
   ],
 
   ceo: [
-    `# Think AI — Autonomous Operating System 🧠
+    `# Thinker AI — Autonomous Operating System 🧠
 
-I'm **Think AI**, your autonomous AI operating system. Here's what I'm capable of:
+I'm **Thinker AI**, your autonomous AI operating system. Here's what I'm capable of:
 
 ## Active Agent Fleet
 

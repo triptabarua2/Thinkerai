@@ -18,7 +18,7 @@ interface Props {
   placeholder?: string;
 }
 
-export function ChatInput({ onSend, disabled = false, placeholder = "Message Think AI..." }: Props) {
+export function ChatInput({ onSend, disabled = false, placeholder = "Message Thinker AI..." }: Props) {
   const colors = useColors();
   const [text, setText] = useState("");
   const inputRef = useRef<TextInput>(null);

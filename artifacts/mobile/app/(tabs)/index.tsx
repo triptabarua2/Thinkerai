@@ -96,7 +96,7 @@ export default function HomeScreen() {
 
           <View style={styles.logoWrap}>
             <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.logoText, { color: colors.text }]}>Think AI</Text>
+            <Text style={[styles.logoText, { color: colors.text }]}>Thinker AI</Text>
           </View>
 
           <TouchableOpacity
@@ -209,7 +209,7 @@ function HomeChatBar({
           style={[barStyles.input, { color: colors.text }]}
           value={text}
           onChangeText={setText}
-          placeholder="Ask Think AI anything..."
+          placeholder="Ask Thinker AI anything..."
           placeholderTextColor={colors.textTertiary}
           multiline
           maxLength={2000}

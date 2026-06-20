@@ -3,7 +3,7 @@ import { getDemoClarification } from "../lib/demoResponses.js";
 
 const router = Router();
 
-const CLARIFY_SYSTEM = `You are a requirements analyst for Think AI, an autonomous AI operating system.
+const CLARIFY_SYSTEM = `You are a requirements analyst for Thinker AI, an autonomous AI operating system.
 
 Your job: analyze user requests and determine if they need clarification before execution.
 
