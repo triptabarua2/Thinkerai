@@ -24,6 +24,7 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   agentType?: AgentType;
+  pinnedAt?: number;
 }
 
 interface AppContextValue {
@@ -31,6 +32,7 @@ interface AppContextValue {
   createConversation: (title?: string, agentType?: AgentType) => Promise<string>;
   updateConversation: (id: string, updates: Partial<Conversation>) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  pinConversation: (id: string, pinned: boolean) => Promise<void>;
   getConversation: (id: string) => Conversation | undefined;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -113,6 +115,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [persist]
   );
 
+  const pinConversation = useCallback(
+    async (id: string, pinned: boolean) => {
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c.id === id
+            ? { ...c, pinnedAt: pinned ? Date.now() : undefined }
+            : c
+        );
+        persist(next);
+        return next;
+      });
+    },
+    [persist]
+  );
+
   const getConversation = useCallback(
     (id: string) => conversations.find((c) => c.id === id),
     [conversations]
@@ -125,6 +142,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createConversation,
         updateConversation,
         deleteConversation,
+        pinConversation,
         getConversation,
         sidebarOpen,
         setSidebarOpen,

@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
+  Modal,
   PanResponder,
   Platform,
   Pressable,
@@ -17,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
+import type { Conversation } from "@/context/AppContext";
 import { AGENTS } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 
@@ -27,18 +30,24 @@ interface Props {
 
 const SWIPE_THRESHOLD = 60;
 
-function groupConversations(convs: ReturnType<typeof useApp>["conversations"]) {
+function groupConversations(convs: Conversation[]) {
+  const pinned = convs.filter((c) => !!c.pinnedAt).sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
+  const unpinned = convs.filter((c) => !c.pinnedAt);
   const now = Date.now();
-  const today: typeof convs = [];
-  const yesterday: typeof convs = [];
-  const earlier: typeof convs = [];
-  for (const c of convs) {
+  const today: Conversation[] = [];
+  const yesterday: Conversation[] = [];
+  const earlier: Conversation[] = [];
+  for (const c of unpinned) {
     const diff = now - c.updatedAt;
     if (diff < 86400000) today.push(c);
     else if (diff < 172800000) yesterday.push(c);
     else earlier.push(c);
   }
-  return { today, yesterday, earlier };
+  return { pinned, today, yesterday, earlier };
+}
+
+interface ContextMenu {
+  conv: Conversation;
 }
 
 export function Sidebar({ visible, onClose }: Props) {
@@ -46,7 +55,10 @@ export function Sidebar({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const PANEL_HEIGHT = screenHeight;
-  const { conversations, createConversation, setSidebarOpen } = useApp();
+  const { conversations, createConversation, setSidebarOpen, deleteConversation, pinConversation } = useApp();
+
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const menuAnim = useRef(new Animated.Value(0)).current;
 
   const translateY = useRef(new Animated.Value(-screenHeight)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -89,6 +101,19 @@ export function Sidebar({ visible, onClose }: Props) {
     }
   }, [visible, translateY, opacity, dragY]);
 
+  useEffect(() => {
+    if (contextMenu) {
+      Animated.spring(menuAnim, {
+        toValue: 1,
+        damping: 22,
+        stiffness: 280,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      menuAnim.setValue(0);
+    }
+  }, [contextMenu]);
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) =>
@@ -124,48 +149,106 @@ export function Sidebar({ visible, onClose }: Props) {
     router.push(`/chat/${id}`);
   }
 
-  const { today, yesterday, earlier } = groupConversations(conversations);
+  function handleLongPress(conv: Conversation) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setContextMenu({ conv });
+  }
+
+  function closeContextMenu() {
+    Animated.timing(menuAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => setContextMenu(null));
+  }
+
+  async function handlePin() {
+    if (!contextMenu) return;
+    const isPinned = !!contextMenu.conv.pinnedAt;
+    await pinConversation(contextMenu.conv.id, !isPinned);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    closeContextMenu();
+  }
+
+  function handleDelete() {
+    if (!contextMenu) return;
+    const conv = contextMenu.conv;
+    closeContextMenu();
+    setTimeout(() => {
+      Alert.alert(
+        "Delete Chat",
+        `"${conv.title}" permanently delete হবে।`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              await deleteConversation(conv.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            },
+          },
+        ]
+      );
+    }, 200);
+  }
+
+  const { pinned, today, yesterday, earlier } = groupConversations(conversations);
+
+  const ConvItem = ({ conv }: { conv: Conversation }) => {
+    const agent = conv.agentType ? AGENTS[conv.agentType] : null;
+    const isPinned = !!conv.pinnedAt;
+    return (
+      <TouchableOpacity
+        style={[styles.convItem, { borderColor: colors.border }]}
+        onPress={() => handleOpenChat(conv.id)}
+        onLongPress={() => handleLongPress(conv)}
+        delayLongPress={350}
+        activeOpacity={0.7}
+      >
+        {isPinned ? (
+          <Feather name="bookmark" size={13} color={colors.primary} />
+        ) : agent ? (
+          <Feather name={agent.icon as any} size={14} color={agent.color} />
+        ) : (
+          <Feather name="message-square" size={14} color={colors.textSecondary} />
+        )}
+        <Text
+          style={[styles.convTitle, { color: colors.text }]}
+          numberOfLines={1}
+        >
+          {conv.title}
+        </Text>
+        {isPinned && (
+          <View style={[styles.pinnedDot, { backgroundColor: colors.primary + "30" }]}>
+            <Text style={[styles.pinnedLabel, { color: colors.primary }]}>pinned</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   const ConvGroup = ({
     title,
     items,
+    icon,
   }: {
     title: string;
-    items: typeof conversations;
+    items: Conversation[];
+    icon?: string;
   }) => {
     if (items.length === 0) return null;
     return (
       <View style={styles.group}>
-        <Text style={[styles.groupTitle, { color: colors.textTertiary }]}>
-          {title}
-        </Text>
-        {items.map((conv) => {
-          const agent = conv.agentType ? AGENTS[conv.agentType] : null;
-          return (
-            <TouchableOpacity
-              key={conv.id}
-              style={[styles.convItem, { borderColor: colors.border }]}
-              onPress={() => handleOpenChat(conv.id)}
-              activeOpacity={0.7}
-            >
-              {agent ? (
-                <Feather name={agent.icon as any} size={14} color={agent.color} />
-              ) : (
-                <Feather
-                  name="message-square"
-                  size={14}
-                  color={colors.textSecondary}
-                />
-              )}
-              <Text
-                style={[styles.convTitle, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {conv.title}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        <View style={styles.groupTitleRow}>
+          {icon && <Feather name={icon as any} size={10} color={colors.textTertiary} />}
+          <Text style={[styles.groupTitle, { color: colors.textTertiary }]}>
+            {title}
+          </Text>
+        </View>
+        {items.map((conv) => (
+          <ConvItem key={conv.id} conv={conv} />
+        ))}
       </View>
     );
   };
@@ -174,6 +257,11 @@ export function Sidebar({ visible, onClose }: Props) {
 
   const combinedY = Animated.add(translateY, dragY);
   const topOffset = insets.top + (Platform.OS === "web" ? 67 : 0);
+
+  const menuTranslateY = menuAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [40, 0],
+  });
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={visible ? "auto" : "none"}>
@@ -252,6 +340,7 @@ export function Sidebar({ visible, onClose }: Props) {
             </View>
           ) : (
             <>
+              <ConvGroup title="Pinned" items={pinned} icon="bookmark" />
               <ConvGroup title="Today" items={today} />
               <ConvGroup title="Yesterday" items={yesterday} />
               <ConvGroup title="Earlier" items={earlier} />
@@ -279,6 +368,96 @@ export function Sidebar({ visible, onClose }: Props) {
           ))}
         </View>
       </Animated.View>
+
+      {/* Context Menu Modal */}
+      <Modal
+        visible={!!contextMenu}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={closeContextMenu}
+      >
+        <Pressable style={styles.menuOverlay} onPress={closeContextMenu}>
+          <Animated.View
+            style={[
+              styles.menuSheet,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                opacity: menuAnim,
+                transform: [{ translateY: menuTranslateY }],
+              },
+            ]}
+          >
+            {/* Chat title */}
+            <View style={[styles.menuHeader, { borderBottomColor: colors.border }]}>
+              <Feather name="message-square" size={14} color={colors.textSecondary} />
+              <Text
+                style={[styles.menuTitle, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                {contextMenu?.conv.title}
+              </Text>
+            </View>
+
+            {/* Pin / Unpin */}
+            <TouchableOpacity
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}
+              onPress={handlePin}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: colors.primary + "18" }]}>
+                <Feather name="bookmark" size={16} color={colors.primary} />
+              </View>
+              <Text style={[styles.menuLabel, { color: colors.text }]}>
+                {contextMenu?.conv.pinnedAt ? "Unpin Chat" : "Pin Chat"}
+              </Text>
+              <Feather name="chevron-right" size={14} color={colors.textTertiary} />
+            </TouchableOpacity>
+
+            {/* Rename (placeholder) */}
+            <TouchableOpacity
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}
+              onPress={closeContextMenu}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: colors.textSecondary + "18" }]}>
+                <Feather name="edit-2" size={16} color={colors.textSecondary} />
+              </View>
+              <Text style={[styles.menuLabel, { color: colors.text }]}>
+                Rename
+              </Text>
+              <Feather name="chevron-right" size={14} color={colors.textTertiary} />
+            </TouchableOpacity>
+
+            {/* Delete */}
+            <TouchableOpacity
+              style={[styles.menuItem, { borderBottomColor: "transparent" }]}
+              onPress={handleDelete}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: "#ff453a18" }]}>
+                <Feather name="trash-2" size={16} color="#ff453a" />
+              </View>
+              <Text style={[styles.menuLabel, { color: "#ff453a" }]}>
+                Delete Chat
+              </Text>
+              <Feather name="chevron-right" size={14} color="#ff453a50" />
+            </TouchableOpacity>
+
+            {/* Cancel */}
+            <TouchableOpacity
+              style={[styles.cancelBtn, { backgroundColor: colors.border + "60" }]}
+              onPress={closeContextMenu}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.cancelLabel, { color: colors.textSecondary }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -358,13 +537,18 @@ const styles = StyleSheet.create({
   group: {
     marginBottom: 8,
   },
+  groupTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
   groupTitle: {
     fontSize: 11,
     fontWeight: "600" as const,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
   },
   convItem: {
     flexDirection: "row",
@@ -378,6 +562,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "400" as const,
     flex: 1,
+  },
+  pinnedDot: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  pinnedLabel: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    letterSpacing: 0.3,
   },
   empty: {
     alignItems: "center",
@@ -406,5 +600,66 @@ const styles = StyleSheet.create({
   footerLabel: {
     fontSize: 13,
     fontWeight: "400" as const,
+  },
+  // Context menu
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+    paddingHorizontal: 12,
+    paddingBottom: 32,
+  },
+  menuSheet: {
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  menuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  menuTitle: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    flex: 1,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuLabel: {
+    fontSize: 15,
+    fontWeight: "500" as const,
+    flex: 1,
+  },
+  cancelBtn: {
+    margin: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  cancelLabel: {
+    fontSize: 15,
+    fontWeight: "600" as const,
   },
 });
