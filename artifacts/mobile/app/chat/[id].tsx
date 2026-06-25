@@ -406,7 +406,6 @@ export default function ChatScreen() {
                 const credits = event.estimatedCredits as number;
                 const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
                 setPipelineLabel(`${levelLabel} Thinking · ~${credits} credits`);
-                setThinkingLevel(level);
                 break;
               }
 
