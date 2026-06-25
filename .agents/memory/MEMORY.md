@@ -1,1 +1,1 @@
-- [Agent system architecture](agent-system.md) — 17 agents in agents.ts; Claude primary in chat.ts; systemHint renamed to capability
+- [Agent system architecture](agent-system.md) — 12 pipeline agents + 17 chat agents; Dynamic Routing Engine in thinkerCore.ts; Strategy+Design agents added; SignatureQuestion, ThinkCredits, extended PipelineState

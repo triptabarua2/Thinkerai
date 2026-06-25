@@ -1,5 +1,5 @@
 import { llmCall, parseJSON } from "../lib/llm.js";
-import type { ReviewerResult, BuilderOutput } from "../types/pipeline.js";
+import type { ReviewerResult, BuilderOutput, NextAction } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Reviewer Agent for Thinker AI.
 
@@ -15,19 +15,27 @@ Respond ONLY with valid JSON:
   "passed": <true|false>,
   "issues": [
     {"description": "<issue>", "severity": "low|medium|high"}
-  ]
+  ],
+  "next_action": "proceed|retry|replan",
+  "reason": "<brief>"
 }
 
 Rules:
 - passed=true if no high-severity issues exist
-- Only flag real issues, not style preferences
-- Maximum 5 issues
-- If the deliverable is good, return passed=true with empty issues array`;
+- next_action="retry" if passed=false AND issues are fixable by Builder
+- next_action="replan" if the root issue is a planning failure, not implementation
+- next_action="proceed" if passed=true
+- Only flag real issues, not style preferences. Maximum 5 issues.`;
+
+export interface ReviewerResultExtended extends ReviewerResult {
+  next_action: NextAction;
+  reason: string;
+}
 
 export async function runReviewerAgent(
   builderOutput: BuilderOutput,
   requirements: Record<string, string>
-): Promise<ReviewerResult> {
+): Promise<ReviewerResultExtended> {
   const reqStr = Object.entries(requirements).map(([k, v]) => `${k}: ${v}`).join(", ");
   const contentPreview = builderOutput.content.slice(0, 3000);
 
@@ -35,12 +43,18 @@ export async function runReviewerAgent(
 
   try {
     const raw = await llmCall(SYSTEM, userPrompt, "mid");
-    const parsed = parseJSON<ReviewerResult>(raw, { passed: true, issues: [] });
+    const parsed = parseJSON<ReviewerResultExtended>(raw, defaultReviewer());
     return {
       passed: parsed.passed ?? true,
       issues: (parsed.issues ?? []).slice(0, 5),
+      next_action: parsed.next_action ?? (parsed.passed ? "proceed" : "retry"),
+      reason: parsed.reason ?? "Review complete",
     };
   } catch {
-    return { passed: true, issues: [] };
+    return defaultReviewer();
   }
+}
+
+function defaultReviewer(): ReviewerResultExtended {
+  return { passed: true, issues: [], next_action: "proceed", reason: "Review passed (default)" };
 }

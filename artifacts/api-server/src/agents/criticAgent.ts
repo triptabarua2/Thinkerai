@@ -1,5 +1,5 @@
 import { llmCall, parseJSON } from "../lib/llm.js";
-import type { CriticResult, BuilderOutput } from "../types/pipeline.js";
+import type { CriticResult, BuilderOutput, NextAction } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Critic Agent for Thinker AI — an adversarial, skeptical reviewer.
 
@@ -13,34 +13,48 @@ Look specifically for what the Reviewer might have MISSED:
 - Performance issues
 - Security gaps that a checklist might skip
 
-After forming your opinion, be honest and specific.
-
 Respond ONLY with valid JSON:
 {
   "concerns": [
     {"description": "<concern>", "severity": "low|medium|high"}
   ],
-  "overallSeverity": "low|medium|high"
+  "overallSeverity": "low|medium|high",
+  "next_action": "proceed|retry|replan|escalate",
+  "reason": "<brief>"
 }
 
-If the deliverable is solid, return empty concerns and overallSeverity="low".
-Maximum 4 concerns.`;
+Rules:
+- next_action="proceed" if overallSeverity is "low" or "medium" with no blockers
+- next_action="retry" if overallSeverity is "high" and issues are Builder-fixable
+- next_action="escalate" if Reviewer and Critic fundamentally disagree on quality
+- If solid, return empty concerns and overallSeverity="low". Maximum 4 concerns.`;
 
-export async function runCriticAgent(builderOutput: BuilderOutput): Promise<CriticResult> {
+export interface CriticResultExtended extends CriticResult {
+  next_action: NextAction;
+  reason: string;
+}
+
+export async function runCriticAgent(builderOutput: BuilderOutput): Promise<CriticResultExtended> {
   const contentPreview = builderOutput.content.slice(0, 3000);
 
   try {
     const raw = await llmCall(
       SYSTEM,
-      `Review this deliverable for weaknesses:\n${contentPreview}`,
+      `Review this deliverable for weaknesses (you have NOT seen any previous review):\n${contentPreview}`,
       "mid"
     );
-    const parsed = parseJSON<CriticResult>(raw, { concerns: [], overallSeverity: "low" });
+    const parsed = parseJSON<CriticResultExtended>(raw, defaultCritic());
     return {
       concerns: (parsed.concerns ?? []).slice(0, 4),
       overallSeverity: parsed.overallSeverity ?? "low",
+      next_action: parsed.next_action ?? "proceed",
+      reason: parsed.reason ?? "Critique complete",
     };
   } catch {
-    return { concerns: [], overallSeverity: "low" };
+    return defaultCritic();
   }
+}
+
+function defaultCritic(): CriticResultExtended {
+  return { concerns: [], overallSeverity: "low", next_action: "proceed", reason: "No significant concerns (default)" };
 }

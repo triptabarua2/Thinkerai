@@ -19,6 +19,7 @@ import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
 import { MessageBubble } from "@/components/MessageBubble";
 import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
+import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
@@ -36,13 +37,16 @@ type ClarifyState =
   | { status: "idle" }
   | { status: "checking" }
   | { status: "needed"; data: ClarifyData; pendingMessage: string }
+  | { status: "signature"; question: string; pendingMessage: string }
   | { status: "skipped" };
 
 const PIPELINE_AGENTS = [
   { id: "intent",        label: "Intent analysis",     icon: "compass" },
   { id: "clarification", label: "Requirements check",  icon: "help-circle" },
+  { id: "strategy",      label: "Strategic thinking",  icon: "trending-up" },
   { id: "planner",       label: "Execution plan",      icon: "map" },
   { id: "research",      label: "Research",            icon: "search" },
+  { id: "design",        label: "Visual design",       icon: "image" },
   { id: "builder",       label: "Building",            icon: "code" },
   { id: "reviewer",      label: "Quality review",      icon: "check-circle" },
   { id: "critic",        label: "Independent review",  icon: "alert-circle" },
@@ -126,6 +130,115 @@ export default function ChatScreen() {
     const pending = clarifyState.pendingMessage;
     setClarifyState({ status: "skipped" });
     sendMessage(pending);
+  }
+
+  async function handleSignatureAnswer(answer: string) {
+    if (clarifyState.status !== "signature") return;
+    const { pendingMessage } = clarifyState;
+    setClarifyState({ status: "skipped" });
+    // Re-send with signature answer included as metadata
+    const enrichedMessage = `${pendingMessage}`;
+    await sendMessageWithSignature(enrichedMessage, answer, true);
+  }
+
+  function handleSignatureSkip() {
+    if (clarifyState.status !== "signature") return;
+    const { pendingMessage } = clarifyState;
+    setClarifyState({ status: "skipped" });
+    sendMessageWithSignature(pendingMessage, null, true);
+  }
+
+  async function sendMessageWithSignature(text: string, signatureAnswer: string | null, signatureAnswered: boolean) {
+    if (!id) return;
+
+    const currentMessages = [...messages];
+    const userMsg: Message = {
+      id: genId(),
+      role: "user",
+      content: signatureAnswer ? `*"${signatureAnswer}"*` : "*(skipped signature question)*",
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setIsStreaming(true);
+    setShowTyping(true);
+    setPipelineSteps(buildInitialSteps());
+    setPipelineActive(false);
+    setPipelineLabel("");
+
+    try {
+      const baseUrl = getBaseUrl();
+      const chatHistory = [
+        ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: text },
+      ];
+
+      const response = await fetch(`${baseUrl}api/pipeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({
+          messages: chatHistory,
+          signatureAnswer: signatureAnswer ?? undefined,
+          signatureAnswered,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Error: ${response.status}`);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let fullContent = "";
+      let buffer = "";
+      let assistantAdded = false;
+      const assistantId = genId();
+      const activeAgent = agentType;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+          try {
+            const event = JSON.parse(data) as Record<string, unknown>;
+            if (event.type === "agent_start") {
+              setPipelineActive(true);
+              setShowTyping(false);
+              updateStepStatus(event.agent as string, "running", event.label as string);
+              setPipelineLabel(event.label as string);
+            } else if (event.type === "agent_done") {
+              updateStepStatus(event.agent as string, "done");
+            } else if (event.type === "content") {
+              const chunk = event.text as string;
+              if (chunk) {
+                fullContent += chunk;
+                if (!assistantAdded) {
+                  setShowTyping(false);
+                  setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() }]);
+                  assistantAdded = true;
+                } else {
+                  setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+                }
+              }
+            } else if (event.type === "done") {
+              setPipelineActive(false);
+              setPipelineLabel("");
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      setShowTyping(false);
+      setPipelineActive(false);
+    } finally {
+      setIsStreaming(false);
+      setShowTyping(false);
+    }
   }
 
   async function sendMessage(text: string, displayText?: string) {
@@ -246,6 +359,68 @@ export default function ChatScreen() {
                 break;
               }
 
+              case "signature_question": {
+                const question = event.question as string;
+                setClarifyState({
+                  status: "signature",
+                  question,
+                  pendingMessage: text,
+                });
+                setPipelineActive(false);
+                break;
+              }
+
+              case "strategy_brief": {
+                const brief = event.brief as string;
+                const assessment = event.assessment as string;
+                const assessmentEmoji = assessment === "go" ? "✅" : assessment === "caution" ? "⚠️" : "🔴";
+                if (brief && !assistantAdded) {
+                  fullContent += `> ${assessmentEmoji} **Strategy Brief**: ${brief}\n\n`;
+                  setShowTyping(false);
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: assistantId,
+                      role: "assistant",
+                      content: fullContent,
+                      agentType: activeAgent,
+                      timestamp: Date.now(),
+                    },
+                  ]);
+                  assistantAdded = true;
+                } else if (brief) {
+                  fullContent += `\n\n> ${assessmentEmoji} **Strategy Brief**: ${brief}\n\n`;
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+                    return updated;
+                  });
+                }
+                break;
+              }
+
+              case "thinking_summary": {
+                const level = event.thinkingLevel as string;
+                const credits = event.estimatedCredits as number;
+                const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+                setPipelineLabel(`${levelLabel} Thinking · ~${credits} credits`);
+                break;
+              }
+
+              case "pipeline_halt": {
+                const haltReason = event.reason as string;
+                if (!assistantAdded) {
+                  fullContent = `⚠️ **Pipeline paused**: ${haltReason}\n\nYour work so far has been saved.`;
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                  ]);
+                  assistantAdded = true;
+                }
+                setPipelineActive(false);
+                break;
+              }
+
               case "content": {
                 const chunk = event.text as string;
                 if (chunk) {
@@ -329,7 +504,9 @@ export default function ChatScreen() {
 
   const reversedMessages = [...messages].reverse();
   const isClarifying =
-    clarifyState.status === "checking" || clarifyState.status === "needed";
+    clarifyState.status === "checking" ||
+    clarifyState.status === "needed" ||
+    clarifyState.status === "signature";
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -399,6 +576,14 @@ export default function ChatScreen() {
                   originalMessage={clarifyState.pendingMessage}
                   onProceed={handleClarifyProceed}
                   onSkip={handleClarifySkip}
+                />
+              )}
+              {clarifyState.status === "signature" && (
+                <SignatureQuestionCard
+                  question={clarifyState.question}
+                  onAnswer={handleSignatureAnswer}
+                  onSkip={handleSignatureSkip}
+                  colors={colors}
                 />
               )}
             </>

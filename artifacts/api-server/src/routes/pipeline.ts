@@ -1,13 +1,28 @@
 import { Router, type Request, type Response } from "express";
 import { runThinkerCore } from "../core/thinkerCore.js";
-import type { PipelineEvent } from "../types/pipeline.js";
+import type { PipelineEvent, PlanTier, ThinkingLevel } from "../types/pipeline.js";
 
 const router = Router();
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const { messages, message } = req.body as {
+  const {
+    messages,
+    message,
+    planTier,
+    thinkingLevel,
+    signatureAnswer,
+    signatureAnswered,
+    existingRequirements,
+    domain,
+  } = req.body as {
     messages?: { role: "user" | "assistant"; content: string }[];
     message?: string;
+    planTier?: PlanTier;
+    thinkingLevel?: ThinkingLevel;
+    signatureAnswer?: string;
+    signatureAnswered?: boolean;
+    existingRequirements?: Record<string, string>;
+    domain?: string;
   };
 
   const allMessages = messages ?? [];
@@ -35,7 +50,14 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    await runThinkerCore(userMessage, history, emit);
+    await runThinkerCore(userMessage, history, emit, {
+      planTier: planTier ?? "free",
+      thinkingLevelOverride: thinkingLevel,
+      signatureAnswer,
+      signatureAnswered: signatureAnswered ?? false,
+      existingRequirements: existingRequirements ?? {},
+      domain,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     req.log?.error({ err: msg }, "Pipeline error");

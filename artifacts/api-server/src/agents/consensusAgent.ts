@@ -1,5 +1,5 @@
 import { llmParallel, parseJSON } from "../lib/llm.js";
-import type { ConsensusResult, ConsensusVote, BuilderOutput, ReviewerResult, CriticResult, JudgeResult } from "../types/pipeline.js";
+import type { ConsensusResult, ConsensusVote, BuilderOutput, ReviewerResult, CriticResult, JudgeResult, NextAction } from "../types/pipeline.js";
 
 const PERSONAS = [
   {
@@ -22,12 +22,17 @@ Respond ONLY with JSON: {"verdict":"approve|reject","reasoning":"<one sentence>"
   },
 ];
 
+export interface ConsensusResultExtended extends ConsensusResult {
+  next_action: NextAction;
+  reason: string;
+}
+
 export async function runConsensusAgent(
   builderOutput: BuilderOutput,
   reviewerResult: ReviewerResult,
   criticResult: CriticResult,
   judgeResult: JudgeResult
-): Promise<ConsensusResult> {
+): Promise<ConsensusResultExtended> {
   const contentPreview = builderOutput.content.slice(0, 1500);
   const summary = `Deliverable preview:\n${contentPreview}
 
@@ -71,5 +76,11 @@ Should this deliverable be approved?`;
   // Tie defaults to conservative outcome (reject)
   const finalVerdict: "approve" | "reject" = approveCount > votes.length / 2 ? "approve" : "reject";
 
-  return { votes, finalVerdict, approveCount };
+  return {
+    votes,
+    finalVerdict,
+    approveCount,
+    next_action: finalVerdict === "approve" ? "proceed" : "retry",
+    reason: `Consensus: ${approveCount}/${votes.length} approved`,
+  };
 }
