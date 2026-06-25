@@ -1,1 +1,2 @@
 - [Agent system architecture](agent-system.md) — 12 pipeline agents + 17 chat agents; Dynamic Routing Engine in thinkerCore.ts; Strategy+Design agents added; SignatureQuestion, ThinkCredits, extended PipelineState
+- [V1 feature implementation](v1-features.md) — BlueprintApprovalCard, VersionHistoryCard, DecisionMemoryBanner, language detection, domain picker; all SSE events wired end-to-end

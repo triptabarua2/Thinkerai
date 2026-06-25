@@ -103,6 +103,20 @@ export interface ConstraintFindings {
   [key: string]: string | undefined;
 }
 
+export interface DecisionMemoryEntry {
+  rule: string;
+  detectedAt: number;
+  applies_to: string;
+}
+
+export interface VersionSnapshot {
+  version_number: number;
+  content: string;
+  artifactType: string;
+  timestamp: number;
+  description: string;
+}
+
 export type PlanTier = "free" | "pro" | "founder" | "enterprise";
 
 export interface PipelineState {
@@ -110,6 +124,8 @@ export interface PipelineState {
   intentType: IntentType;
   thinkingLevel: ThinkingLevel;
   planTier: PlanTier;
+
+  detectedLanguage: string;
 
   requirements: Record<string, string>;
   requirementsComplete: boolean;
@@ -124,7 +140,10 @@ export interface PipelineState {
   clarificationLayers: string[];
   goalDiscoveryMode: boolean;
 
+  decisionMemory: DecisionMemoryEntry[];
+
   plan: PlanStep[];
+  blueprintApproved: boolean;
   strategyBrief: string | null;
   researchFindings: ResearchFinding[];
   builderOutput: BuilderOutput | null;
@@ -132,6 +151,11 @@ export interface PipelineState {
   criticResult: CriticResult | null;
   judgeResult: JudgeResult | null;
   consensusResult: ConsensusResult | null;
+
+  version_history: VersionSnapshot[];
+  current_version: number;
+  medium_fix_count: number;
+  full_rebuild_count: number;
 
   current_agent: string;
   routing_history: RoutingHistoryEntry[];
@@ -157,6 +181,8 @@ export interface AgentLog {
   confidence?: number;
   retry_count: number;
   failover_cost: number;
+  clarification_depth?: number;
+  signature_q_answered?: boolean;
 }
 
 export type PipelineStatus =
@@ -164,6 +190,7 @@ export type PipelineStatus =
   | "clarifying"
   | "strategy"
   | "planning"
+  | "blueprint_review"
   | "researching"
   | "building"
   | "reviewing"
@@ -182,6 +209,10 @@ export type PipelineEvent =
   | { type: "signature_question"; question: string }
   | { type: "strategy_brief"; brief: string; assessment: string; founderMode: boolean }
   | { type: "thinking_summary"; summary: string; thinkingLevel: ThinkingLevel; estimatedCredits: number }
+  | { type: "blueprint_ready"; steps: PlanStep[]; techStack: string; estimatedComplexity: string }
+  | { type: "decision_saved"; rule: string; confirmation: string }
+  | { type: "version_saved"; version_number: number; description: string }
+  | { type: "language_detected"; language: string; languageName: string }
   | { type: "content"; text: string }
   | { type: "pipeline_retry"; agent: string; attempt: number }
   | { type: "pipeline_halt"; reason: string; completedSteps: number; totalSteps: number }

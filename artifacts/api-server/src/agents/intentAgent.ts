@@ -1,9 +1,17 @@
 import { llmCall, parseJSON } from "../lib/llm.js";
 import type { IntentType, ThinkingLevel, NextAction } from "../types/pipeline.js";
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English", bn: "Bengali", ar: "Arabic", hi: "Hindi", zh: "Chinese",
+  es: "Spanish", fr: "French", de: "German", pt: "Portuguese", it: "Italian",
+  nl: "Dutch", ja: "Japanese", ko: "Korean", ru: "Russian", tr: "Turkish",
+  pl: "Polish", vi: "Vietnamese", id: "Indonesian", ur: "Urdu", th: "Thai",
+  fa: "Persian", he: "Hebrew", sw: "Swahili", ro: "Romanian", uk: "Ukrainian",
+};
+
 const SYSTEM = `You are an intent classifier for Thinker AI.
 
-Classify the user message and select a Thinking Level.
+Classify the user message, select a Thinking Level, and detect the user's language.
 
 Respond ONLY with valid JSON, no markdown:
 {
@@ -11,6 +19,7 @@ Respond ONLY with valid JSON, no markdown:
   "confidence": <0-100>,
   "thinkingLevel": "<level>",
   "domain": "<domain>",
+  "detectedLanguage": "<ISO 639-1 code e.g. en, bn, ar, hi, zh, es, fr>",
   "next_action": "<action>",
   "reason": "<one sentence>"
 }
@@ -34,15 +43,40 @@ Rules:
 - If intent is a project type → thinkingLevel="high" minimum, next_action="proceed"
 - If message contains startup/business/market/revenue → thinkingLevel="consensus"
 - confidence 90+ → next_action="proceed"; 70-89 → next_action="proceed"; below 70 → next_action="clarify"
-- domain: one of [coding, design, devops, security, research, writing, music, video, general]`;
+- domain: one of [coding, design, devops, security, research, writing, music, video, general]
+- detectedLanguage: detect from the message text (e.g. "আমি একটা অ্যাপ বানাতে চাই" → "bn", "هل يمكنك" → "ar")`;
 
 export interface IntentResult {
   intent: IntentType;
   confidence: number;
   thinkingLevel: ThinkingLevel;
   domain: string;
+  detectedLanguage: string;
   next_action: NextAction;
   reason: string;
+}
+
+function detectLanguageHeuristic(message: string): string {
+  const hasArabic = /[\u0600-\u06FF]/.test(message);
+  const hasBengali = /[\u0980-\u09FF]/.test(message);
+  const hasChinese = /[\u4E00-\u9FFF]/.test(message);
+  const hasJapanese = /[\u3040-\u30FF]/.test(message);
+  const hasKorean = /[\uAC00-\uD7AF]/.test(message);
+  const hasCyrillic = /[\u0400-\u04FF]/.test(message);
+  const hasDevanagari = /[\u0900-\u097F]/.test(message);
+  const hasHebrew = /[\u0590-\u05FF]/.test(message);
+  const hasThai = /[\u0E00-\u0E7F]/.test(message);
+
+  if (hasBengali) return "bn";
+  if (hasArabic) return "ar";
+  if (hasChinese) return "zh";
+  if (hasJapanese) return "ja";
+  if (hasKorean) return "ko";
+  if (hasCyrillic) return "ru";
+  if (hasDevanagari) return "hi";
+  if (hasHebrew) return "he";
+  if (hasThai) return "th";
+  return "en";
 }
 
 function heuristicIntent(message: string): IntentResult {
@@ -74,9 +108,14 @@ function heuristicIntent(message: string): IntentResult {
     confidence: 65,
     thinkingLevel,
     domain: "general",
+    detectedLanguage: detectLanguageHeuristic(message),
     next_action,
     reason: "Heuristic classification",
   };
+}
+
+export function getLanguageName(code: string): string {
+  return LANGUAGE_NAMES[code] ?? code.toUpperCase();
 }
 
 export async function runIntentAgent(
@@ -96,6 +135,7 @@ export async function runIntentAgent(
       confidence: parsed.confidence ?? fallback.confidence,
       thinkingLevel: parsed.thinkingLevel ?? fallback.thinkingLevel,
       domain: parsed.domain ?? "general",
+      detectedLanguage: parsed.detectedLanguage ?? detectLanguageHeuristic(message),
       next_action: parsed.next_action ?? fallback.next_action,
       reason: parsed.reason ?? "Classification complete",
     };

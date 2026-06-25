@@ -17,6 +17,12 @@ export interface Message {
   timestamp: number;
 }
 
+export interface DecisionMemoryEntry {
+  rule: string;
+  detectedAt: number;
+  applies_to: string;
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -25,6 +31,10 @@ export interface Conversation {
   updatedAt: number;
   agentType?: AgentType;
   pinnedAt?: number;
+  detectedLanguage?: string;
+  decisionMemory?: DecisionMemoryEntry[];
+  medium_fix_count?: number;
+  full_rebuild_count?: number;
 }
 
 interface AppContextValue {
@@ -41,7 +51,7 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
-const STORAGE_KEY = "@thinkai_conversations_v1";
+const STORAGE_KEY = "@thinkai_conversations_v2";
 
 let idCounter = 0;
 function generateId(): string {
@@ -80,6 +90,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createdAt: now,
         updatedAt: now,
         agentType,
+        decisionMemory: [],
+        medium_fix_count: 0,
+        full_rebuild_count: 0,
       };
       setConversations((prev) => {
         const next = [conv, ...prev];

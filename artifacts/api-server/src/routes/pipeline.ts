@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { runThinkerCore } from "../core/thinkerCore.js";
-import type { PipelineEvent, PlanTier, ThinkingLevel } from "../types/pipeline.js";
+import type { PipelineEvent, PlanTier, ThinkingLevel, DecisionMemoryEntry, VersionSnapshot } from "../types/pipeline.js";
 
 const router = Router();
 
@@ -14,6 +14,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     signatureAnswered,
     existingRequirements,
     domain,
+    blueprintApproved,
+    existingPlan,
+    fixType,
+    medium_fix_count,
+    full_rebuild_count,
+    detectedLanguage,
+    decisionMemory,
+    versionHistory,
+    currentVersion,
   } = req.body as {
     messages?: { role: "user" | "assistant"; content: string }[];
     message?: string;
@@ -23,6 +32,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     signatureAnswered?: boolean;
     existingRequirements?: Record<string, string>;
     domain?: string;
+    blueprintApproved?: boolean;
+    existingPlan?: unknown[];
+    fixType?: "small" | "medium" | "full_rebuild";
+    medium_fix_count?: number;
+    full_rebuild_count?: number;
+    detectedLanguage?: string;
+    decisionMemory?: DecisionMemoryEntry[];
+    versionHistory?: VersionSnapshot[];
+    currentVersion?: number;
   };
 
   const allMessages = messages ?? [];
@@ -51,14 +69,23 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
   try {
     await runThinkerCore(userMessage, history, emit, {
-      planTier: (["free", "pro", "enterprise"] as PlanTier[]).includes(planTier as PlanTier)
-      ? (planTier as PlanTier)
-      : "free",
+      planTier: (["free", "pro", "founder", "enterprise"] as PlanTier[]).includes(planTier as PlanTier)
+        ? (planTier as PlanTier)
+        : "free",
       thinkingLevelOverride: thinkingLevel,
       signatureAnswer,
       signatureAnswered: signatureAnswered ?? false,
       existingRequirements: existingRequirements ?? {},
       domain,
+      blueprintApproved: blueprintApproved ?? false,
+      existingPlan,
+      fixType,
+      medium_fix_count,
+      full_rebuild_count,
+      detectedLanguage,
+      decisionMemory,
+      versionHistory,
+      currentVersion,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

@@ -15,13 +15,16 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AgentPanel } from "@/components/AgentPanel";
+import { BlueprintApprovalCard, type BlueprintStep } from "@/components/BlueprintApprovalCard";
 import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
+import { DecisionMemoryBanner } from "@/components/DecisionMemoryBanner";
 import { MessageBubble } from "@/components/MessageBubble";
 import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
 import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
 import { ThinkingLevelPicker, type ThinkingLevel } from "@/components/ThinkingLevelPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
+import { VersionHistoryCard, type VersionItem } from "@/components/VersionHistoryCard";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
 import { AGENTS, detectAgentType, type AgentType } from "@/lib/agents";
@@ -39,7 +42,13 @@ type ClarifyState =
   | { status: "checking" }
   | { status: "needed"; data: ClarifyData; pendingMessage: string }
   | { status: "signature"; question: string; pendingMessage: string }
+  | { status: "blueprint"; steps: BlueprintStep[]; techStack: string; complexity: string; pendingMessage: string }
   | { status: "skipped" };
+
+interface DecisionEvent {
+  rule: string;
+  confirmation: string;
+}
 
 const PIPELINE_AGENTS = [
   { id: "intent",        label: "Intent analysis",     icon: "compass" },
@@ -72,6 +81,13 @@ export default function ChatScreen() {
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
   const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("medium");
+  const [selectedDomain, setSelectedDomain] = useState<string>("general");
+  const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
+  const [decisionEvent, setDecisionEvent] = useState<DecisionEvent | null>(null);
+  const [decisionMemory, setDecisionMemory] = useState<Array<{ rule: string; detectedAt: number; applies_to: string }>>([]);
+  const [versionHistory, setVersionHistory] = useState<VersionItem[]>([]);
+  const [currentVersion, setCurrentVersion] = useState(0);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // Pipeline state
   const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>(buildInitialSteps());
@@ -117,11 +133,9 @@ export default function ChatScreen() {
   async function handleClarifyProceed(answers: Record<string, string>) {
     if (clarifyState.status !== "needed") return;
     const { pendingMessage, data } = clarifyState;
-
     const answerLines = data.questions
       .map((q) => `- ${q.question}: **${answers[q.id]}**`)
       .join("\n");
-
     const enrichedMessage = `${pendingMessage}\n\n**My answers:**\n${answerLines}`;
     setClarifyState({ status: "skipped" });
     await sendMessage(enrichedMessage, pendingMessage);
@@ -138,9 +152,7 @@ export default function ChatScreen() {
     if (clarifyState.status !== "signature") return;
     const { pendingMessage } = clarifyState;
     setClarifyState({ status: "skipped" });
-    // Re-send with signature answer included as metadata
-    const enrichedMessage = `${pendingMessage}`;
-    await sendMessageWithSignature(enrichedMessage, answer, true);
+    await sendMessageWithSignature(pendingMessage, answer, true);
   }
 
   function handleSignatureSkip() {
@@ -150,24 +162,59 @@ export default function ChatScreen() {
     sendMessageWithSignature(pendingMessage, null, true);
   }
 
-  async function sendMessageWithSignature(text: string, signatureAnswer: string | null, signatureAnswered: boolean) {
-    if (!id) return;
+  async function handleBlueprintApprove() {
+    if (clarifyState.status !== "blueprint") return;
+    const { pendingMessage, steps } = clarifyState;
+    setClarifyState({ status: "skipped" });
+    await sendMessageWithOptions(pendingMessage, {
+      blueprintApproved: true,
+      existingPlan: steps,
+    });
+  }
 
+  async function handleBlueprintModify(feedback: string) {
+    if (clarifyState.status !== "blueprint") return;
+    const { pendingMessage } = clarifyState;
+    setClarifyState({ status: "skipped" });
+    await sendMessage(`${pendingMessage}\n\n**Blueprint feedback:** ${feedback}`);
+  }
+
+  function handleBlueprintStartOver() {
+    if (clarifyState.status !== "blueprint") return;
+    setClarifyState({ status: "idle" });
+  }
+
+  async function handleRollback(versionNum: number) {
+    const version = versionHistory.find((v) => v.version_number === versionNum);
+    if (!version) return;
+    setCurrentVersion(versionNum);
+    const rollbackMsg: Message = {
+      id: genId(),
+      role: "assistant",
+      content: `↩️ **Rolled back to Version ${versionNum}**\n\n${version.description}\n\n${version.content.slice(0, 500)}${version.content.length > 500 ? "\n\n*[content truncated — full version restored]*" : ""}`,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, rollbackMsg]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
+  async function sendMessageWithOptions(text: string, extraOptions: Record<string, unknown>) {
+    if (!id) return;
     const currentMessages = [...messages];
     const userMsg: Message = {
       id: genId(),
       role: "user",
-      content: signatureAnswer ? `*"${signatureAnswer}"*` : "*(skipped signature question)*",
+      content: text,
       timestamp: Date.now(),
     };
-
     setMessages((prev) => [...prev, userMsg]);
     setIsStreaming(true);
     setShowTyping(true);
     setPipelineSteps(buildInitialSteps());
     setPipelineActive(false);
-    setPipelineLabel("");
+    setDecisionEvent(null);
 
+    const activeAgent = agentType;
     try {
       const baseUrl = getBaseUrl();
       const chatHistory = [
@@ -180,60 +227,66 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({
           messages: chatHistory,
-          signatureAnswer: signatureAnswer ?? undefined,
-          signatureAnswered,
+          thinkingLevel,
+          domain: selectedDomain,
+          detectedLanguage,
+          decisionMemory,
+          versionHistory,
+          currentVersion,
+          ...extraOptions,
         }),
       });
 
       if (!response.ok) throw new Error(`Error: ${response.status}`);
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
+    } catch {
+      setShowTyping(false);
+      setPipelineActive(false);
+    } finally {
+      setIsStreaming(false);
+      setShowTyping(false);
+    }
+  }
 
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let buffer = "";
-      let assistantAdded = false;
-      const assistantId = genId();
-      const activeAgent = agentType;
+  async function sendMessageWithSignature(text: string, signatureAnswer: string | null, signatureAnswered: boolean) {
+    const currentMessages = [...messages];
+    const userMsg: Message = {
+      id: genId(),
+      role: "user",
+      content: signatureAnswer ? `*"${signatureAnswer}"*` : "*(skipped signature question)*",
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsStreaming(true);
+    setShowTyping(true);
+    setPipelineSteps(buildInitialSteps());
+    setPipelineActive(false);
+    setDecisionEvent(null);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-          try {
-            const event = JSON.parse(data) as Record<string, unknown>;
-            if (event.type === "agent_start") {
-              setPipelineActive(true);
-              setShowTyping(false);
-              updateStepStatus(event.agent as string, "running", event.label as string);
-              setPipelineLabel(event.label as string);
-            } else if (event.type === "agent_done") {
-              updateStepStatus(event.agent as string, "done");
-            } else if (event.type === "content") {
-              const chunk = event.text as string;
-              if (chunk) {
-                fullContent += chunk;
-                if (!assistantAdded) {
-                  setShowTyping(false);
-                  setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() }]);
-                  assistantAdded = true;
-                } else {
-                  setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
-                }
-              }
-            } else if (event.type === "done") {
-              setPipelineActive(false);
-              setPipelineLabel("");
-            }
-          } catch {}
-        }
-      }
+    const activeAgent = agentType;
+    try {
+      const baseUrl = getBaseUrl();
+      const chatHistory = [
+        ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: text },
+      ];
+      const response = await fetch(`${baseUrl}api/pipeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({
+          messages: chatHistory,
+          thinkingLevel,
+          domain: selectedDomain,
+          signatureAnswer: signatureAnswer ?? undefined,
+          signatureAnswered,
+          detectedLanguage,
+          decisionMemory,
+          versionHistory,
+          currentVersion,
+        }),
+      });
+      if (!response.ok) throw new Error(`Error: ${response.status}`);
+      await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
     } catch {
       setShowTyping(false);
       setPipelineActive(false);
@@ -245,7 +298,6 @@ export default function ChatScreen() {
 
   async function sendMessage(text: string, displayText?: string) {
     if (!id) return;
-
     const currentMessages = [...messages];
     const detected = detectAgentType(displayText ?? text);
     if (messages.length === 0) setAgentType(detected);
@@ -262,10 +314,10 @@ export default function ChatScreen() {
     setShowTyping(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Reset pipeline
     setPipelineSteps(buildInitialSteps());
     setPipelineActive(false);
     setPipelineLabel("");
+    setDecisionEvent(null);
 
     const activeAgent = messages.length === 0 ? detected : agentType;
 
@@ -278,216 +330,20 @@ export default function ChatScreen() {
 
       const response = await fetch(`${baseUrl}api/pipeline`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify({ messages: chatHistory, thinkingLevel }),
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({
+          messages: chatHistory,
+          thinkingLevel,
+          domain: selectedDomain !== "general" ? selectedDomain : undefined,
+          detectedLanguage: detectedLanguage !== "en" ? detectedLanguage : undefined,
+          decisionMemory: decisionMemory.length > 0 ? decisionMemory : undefined,
+          versionHistory: versionHistory.length > 0 ? versionHistory : undefined,
+          currentVersion: currentVersion > 0 ? currentVersion : undefined,
+        }),
       });
 
       if (!response.ok) throw new Error(`Error: ${response.status}`);
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let buffer = "";
-      let assistantAdded = false;
-      const assistantId = genId();
-      let pipelineWasActive = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-
-          try {
-            const event = JSON.parse(data) as Record<string, unknown>;
-
-            switch (event.type) {
-              case "agent_start": {
-                const agent = event.agent as string;
-                const label = event.label as string;
-                // Show pipeline UI for non-chat agents (planner, builder, etc.)
-                if (agent !== "intent") {
-                  if (!pipelineWasActive) {
-                    pipelineWasActive = true;
-                    setPipelineActive(true);
-                    setShowTyping(false);
-                  }
-                }
-                updateStepStatus(agent, "running", label);
-                setPipelineLabel(label);
-                break;
-              }
-
-              case "agent_done": {
-                const agent = event.agent as string;
-                updateStepStatus(agent, "done");
-                break;
-              }
-
-              case "pipeline_retry": {
-                const agent = event.agent as string;
-                updateStepStatus(agent, "retried");
-                break;
-              }
-
-              case "clarification_needed": {
-                const questions = event.questions as ClarifyData["questions"];
-                const intentType = (event.intent as string) ?? "task";
-                setClarifyState({
-                  status: "needed",
-                  data: {
-                    needs_clarification: true,
-                    confidence: 60,
-                    intent: `${intentType} request`,
-                    task_type: intentType,
-                    reason: "Need more information to proceed",
-                    questions,
-                  },
-                  pendingMessage: text,
-                });
-                setPipelineActive(false);
-                break;
-              }
-
-              case "signature_question": {
-                const question = event.question as string;
-                setClarifyState({
-                  status: "signature",
-                  question,
-                  pendingMessage: text,
-                });
-                setPipelineActive(false);
-                break;
-              }
-
-              case "strategy_brief": {
-                const brief = event.brief as string;
-                const assessment = event.assessment as string;
-                const assessmentEmoji = assessment === "go" ? "✅" : assessment === "caution" ? "⚠️" : "🔴";
-                if (brief && !assistantAdded) {
-                  fullContent += `> ${assessmentEmoji} **Strategy Brief**: ${brief}\n\n`;
-                  setShowTyping(false);
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      id: assistantId,
-                      role: "assistant",
-                      content: fullContent,
-                      agentType: activeAgent,
-                      timestamp: Date.now(),
-                    },
-                  ]);
-                  assistantAdded = true;
-                } else if (brief) {
-                  fullContent += `\n\n> ${assessmentEmoji} **Strategy Brief**: ${brief}\n\n`;
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-                    return updated;
-                  });
-                }
-                break;
-              }
-
-              case "thinking_summary": {
-                const level = event.thinkingLevel as ThinkingLevel;
-                const credits = event.estimatedCredits as number;
-                const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
-                setPipelineLabel(`${levelLabel} Thinking · ~${credits} credits`);
-                break;
-              }
-
-              case "pipeline_halt": {
-                const haltReason = event.reason as string;
-                if (!assistantAdded) {
-                  fullContent = `⚠️ **Pipeline paused**: ${haltReason}\n\nYour work so far has been saved.`;
-                  setMessages((prev) => [
-                    ...prev,
-                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
-                  ]);
-                  assistantAdded = true;
-                }
-                setPipelineActive(false);
-                break;
-              }
-
-              case "content": {
-                const chunk = event.text as string;
-                if (chunk) {
-                  fullContent += chunk;
-                  if (!assistantAdded) {
-                    setShowTyping(false);
-                    setMessages((prev) => [
-                      ...prev,
-                      {
-                        id: assistantId,
-                        role: "assistant",
-                        content: fullContent,
-                        agentType: activeAgent,
-                        timestamp: Date.now(),
-                      },
-                    ]);
-                    assistantAdded = true;
-                  } else {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      updated[updated.length - 1] = {
-                        ...updated[updated.length - 1],
-                        content: fullContent,
-                      };
-                      return updated;
-                    });
-                  }
-                }
-                break;
-              }
-
-              case "done": {
-                setPipelineActive(false);
-                setPipelineLabel("");
-                break;
-              }
-            }
-          } catch {}
-        }
-      }
-
-      const finalMessages = [
-        ...currentMessages,
-        userMsg,
-        ...(fullContent
-          ? [{
-              id: assistantId,
-              role: "assistant" as const,
-              content: fullContent,
-              agentType: activeAgent,
-              timestamp: Date.now(),
-            }]
-          : []),
-      ];
-
-      const newTitle =
-        conv?.title === "New Chat" || conv?.title === `${AGENTS[activeAgent].name} Session`
-          ? (displayText ?? text).slice(0, 40) + ((displayText ?? text).length > 40 ? "..." : "")
-          : conv?.title ?? "Chat";
-
-      await updateConversation(id, {
-        messages: finalMessages,
-        title: newTitle,
-        agentType: activeAgent,
-      });
+      await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
     } catch {
       setShowTyping(false);
       setPipelineActive(false);
@@ -504,11 +360,248 @@ export default function ChatScreen() {
     }
   }
 
+  async function processSSEStream(
+    response: Response,
+    originalText: string,
+    activeAgent: AgentType,
+    currentMessages: Message[],
+    userMsg: Message
+  ) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let fullContent = "";
+    let buffer = "";
+    let assistantAdded = false;
+    const assistantId = genId();
+    let pipelineWasActive = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6);
+        if (data === "[DONE]") continue;
+
+        try {
+          const event = JSON.parse(data) as Record<string, unknown>;
+
+          switch (event.type) {
+            case "agent_start": {
+              const agent = event.agent as string;
+              const label = event.label as string;
+              if (agent !== "intent") {
+                if (!pipelineWasActive) {
+                  pipelineWasActive = true;
+                  setPipelineActive(true);
+                  setShowTyping(false);
+                }
+              }
+              updateStepStatus(agent, "running", label);
+              setPipelineLabel(label);
+              break;
+            }
+
+            case "agent_done": {
+              updateStepStatus(event.agent as string, "done");
+              break;
+            }
+
+            case "pipeline_retry": {
+              updateStepStatus(event.agent as string, "retried");
+              break;
+            }
+
+            case "language_detected": {
+              const langCode = event.language as string;
+              setDetectedLanguage(langCode);
+              break;
+            }
+
+            case "decision_saved": {
+              const rule = event.rule as string;
+              const confirmation = event.confirmation as string;
+              setDecisionEvent({ rule, confirmation });
+              setDecisionMemory((prev) => [
+                ...prev,
+                { rule, detectedAt: Date.now(), applies_to: "all_projects" },
+              ]);
+              break;
+            }
+
+            case "version_saved": {
+              const vNum = event.version_number as number;
+              const vDesc = event.description as string;
+              setVersionHistory((prev) => {
+                const existing = prev.find((v) => v.version_number === vNum);
+                if (existing) return prev;
+                const newV: VersionItem = {
+                  version_number: vNum,
+                  description: vDesc,
+                  timestamp: Date.now(),
+                  artifactType: "code",
+                };
+                return [...prev.slice(-9), newV];
+              });
+              setCurrentVersion(vNum);
+              break;
+            }
+
+            case "clarification_needed": {
+              const questions = event.questions as ClarifyData["questions"];
+              const intentType = (event.intent as string) ?? "task";
+              setClarifyState({
+                status: "needed",
+                data: {
+                  needs_clarification: true,
+                  confidence: 60,
+                  intent: `${intentType} request`,
+                  task_type: intentType,
+                  reason: "Need more information to proceed",
+                  questions,
+                },
+                pendingMessage: originalText,
+              });
+              setPipelineActive(false);
+              break;
+            }
+
+            case "signature_question": {
+              const question = event.question as string;
+              setClarifyState({
+                status: "signature",
+                question,
+                pendingMessage: originalText,
+              });
+              setPipelineActive(false);
+              break;
+            }
+
+            case "blueprint_ready": {
+              const steps = event.steps as BlueprintStep[];
+              const techStack = (event.techStack as string) ?? "";
+              const complexity = (event.estimatedComplexity as string) ?? "Medium";
+              setClarifyState({
+                status: "blueprint",
+                steps,
+                techStack,
+                complexity,
+                pendingMessage: originalText,
+              });
+              setPipelineActive(false);
+              break;
+            }
+
+            case "strategy_brief": {
+              const brief = event.brief as string;
+              const assessment = event.assessment as string;
+              const founderMode = event.founderMode as boolean;
+              const assessmentEmoji = assessment === "go" ? "✅" : assessment === "caution" ? "⚠️" : "🔴";
+              const founderTag = founderMode ? " 🚀 **Founder Mode**\n\n" : "";
+              if (brief) {
+                const chunk = `${founderTag}> ${assessmentEmoji} **Strategy Brief**: ${brief}\n\n`;
+                fullContent += chunk;
+                if (!assistantAdded) {
+                  setShowTyping(false);
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                  ]);
+                  assistantAdded = true;
+                } else {
+                  setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+                }
+              }
+              break;
+            }
+
+            case "thinking_summary": {
+              const level = event.thinkingLevel as ThinkingLevel;
+              const credits = event.estimatedCredits as number;
+              const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+              setPipelineLabel(`${levelLabel} Thinking · ~${credits} credits`);
+              break;
+            }
+
+            case "pipeline_halt": {
+              const haltReason = event.reason as string;
+              if (!assistantAdded) {
+                fullContent = `⚠️ **Pipeline paused**: ${haltReason}\n\nYour work so far has been saved.`;
+                setMessages((prev) => [
+                  ...prev,
+                  { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                ]);
+                assistantAdded = true;
+              }
+              setPipelineActive(false);
+              break;
+            }
+
+            case "content": {
+              const chunk = event.text as string;
+              if (chunk) {
+                fullContent += chunk;
+                if (!assistantAdded) {
+                  setShowTyping(false);
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                  ]);
+                  assistantAdded = true;
+                } else {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+                    return updated;
+                  });
+                }
+              }
+              break;
+            }
+
+            case "done": {
+              setPipelineActive(false);
+              setPipelineLabel("");
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    const finalMessages = [
+      ...currentMessages,
+      userMsg,
+      ...(fullContent
+        ? [{ id: assistantId, role: "assistant" as const, content: fullContent, agentType: activeAgent, timestamp: Date.now() }]
+        : []),
+    ];
+
+    const newTitle =
+      conv?.title === "New Chat" || conv?.title === `${AGENTS[activeAgent].name} Session`
+        ? (originalText).slice(0, 40) + (originalText.length > 40 ? "..." : "")
+        : conv?.title ?? "Chat";
+
+    await updateConversation(id!, {
+      messages: finalMessages,
+      title: newTitle,
+      agentType: activeAgent,
+    });
+  }
+
   const reversedMessages = [...messages].reverse();
   const isClarifying =
     clarifyState.status === "checking" ||
     clarifyState.status === "needed" ||
-    clarifyState.status === "signature";
+    clarifyState.status === "signature" ||
+    clarifyState.status === "blueprint";
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -543,16 +636,29 @@ export default function ChatScreen() {
           </View>
         ) : null}
 
-        <TouchableOpacity style={[styles.headerBtn, { backgroundColor: colors.card }]}>
-          <Feather name="more-horizontal" size={18} color={colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {versionHistory.length > 0 && (
+            <TouchableOpacity
+              style={[styles.headerBtn, { backgroundColor: colors.card }]}
+              onPress={() => setShowVersionHistory((v) => !v)}
+            >
+              <Feather name="clock" size={16} color={showVersionHistory ? colors.primary : colors.text} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: colors.card }]}>
+            <Feather name="more-horizontal" size={18} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Agent Status */}
+      {/* Agent + Domain */}
       <AgentPanel
         agentType={agentType}
         isStreaming={isStreaming}
-        onAgentChange={(a) => setAgentType(a)}
+        onAgentChange={(a) => {
+          setAgentType(a);
+          setSelectedDomain(a === "ceo" ? "general" : a);
+        }}
       />
 
       {/* Chat */}
@@ -572,6 +678,21 @@ export default function ChatScreen() {
               {pipelineActive && (
                 <PipelineProgress steps={pipelineSteps} visible={pipelineActive} />
               )}
+              {decisionEvent && (
+                <DecisionMemoryBanner
+                  rule={decisionEvent.rule}
+                  confirmation={decisionEvent.confirmation}
+                  colors={colors}
+                />
+              )}
+              {showVersionHistory && versionHistory.length > 0 && (
+                <VersionHistoryCard
+                  versions={versionHistory}
+                  currentVersion={currentVersion}
+                  onRollback={handleRollback}
+                  colors={colors}
+                />
+              )}
               {clarifyState.status === "needed" && (
                 <ClarificationCard
                   data={clarifyState.data}
@@ -588,6 +709,17 @@ export default function ChatScreen() {
                   colors={colors}
                 />
               )}
+              {clarifyState.status === "blueprint" && (
+                <BlueprintApprovalCard
+                  steps={clarifyState.steps}
+                  techStack={clarifyState.techStack}
+                  estimatedComplexity={clarifyState.complexity}
+                  onApprove={handleBlueprintApprove}
+                  onModify={handleBlueprintModify}
+                  onStartOver={handleBlueprintStartOver}
+                  colors={colors}
+                />
+              )}
             </>
           }
           keyboardDismissMode="interactive"
@@ -595,17 +727,25 @@ export default function ChatScreen() {
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            clarifyState.status === "needed" ? null : (
+            isClarifying ? null : (
               <View style={styles.empty}>
                 <View
                   style={[styles.emptyIcon, { backgroundColor: colors.card, borderColor: colors.border }]}
                 >
                   <Feather name="cpu" size={28} color={colors.primary} />
                 </View>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>Ready to help</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Ready to think</Text>
                 <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                  Ask anything — I can plan, research,{"\n"}code, create, and execute tasks
+                  Ask anything — I'll understand your goal,{"\n"}plan the work, then build and verify it
                 </Text>
+                {detectedLanguage !== "en" && (
+                  <View style={[styles.langBadge, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}>
+                    <Feather name="globe" size={12} color={colors.primary} />
+                    <Text style={[styles.langText, { color: colors.primary }]}>
+                      Responding in detected language
+                    </Text>
+                  </View>
+                )}
               </View>
             )
           }
@@ -627,8 +767,29 @@ export default function ChatScreen() {
               onChange={setThinkingLevel}
               disabled={isStreaming}
             />
+            {versionHistory.length > 0 && (
+              <TouchableOpacity
+                style={[styles.versionPill, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => setShowVersionHistory((v) => !v)}
+                activeOpacity={0.75}
+              >
+                <Feather name="clock" size={12} color={colors.textSecondary} />
+                <Text style={[styles.versionPillText, { color: colors.textSecondary }]}>
+                  v{currentVersion}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
-          <ChatInput onSend={handleSend} disabled={isStreaming || isClarifying} />
+
+          <ChatInput
+            onSend={handleSend}
+            disabled={isStreaming || isClarifying}
+            placeholder={
+              isClarifying
+                ? "Answer the questions above first..."
+                : "Ask anything or describe a project..."
+            }
+          />
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -640,30 +801,23 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingBottom: 10,
     gap: 8,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "600" as const,
-  },
-  headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    fontSize: 15,
+    fontWeight: "700",
   },
   clarifyBadge: {
     flexDirection: "row",
@@ -675,20 +829,31 @@ const styles = StyleSheet.create({
     maxWidth: 140,
   },
   clarifyBadgeText: {
-    fontSize: 11,
-    fontWeight: "600" as const,
-    letterSpacing: 0.3,
-    flex: 1,
+    fontSize: 10,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   messageList: {
-    paddingVertical: 12,
+    padding: 12,
+    paddingBottom: 4,
     flexGrow: 1,
   },
   empty: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 40,
+    paddingTop: 80,
     gap: 12,
   },
   emptyIcon: {
@@ -702,23 +867,49 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "600" as const,
+    fontWeight: "700",
   },
   emptyDesc: {
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
     lineHeight: 20,
   },
+  langBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  langText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
   composerWrap: {
-    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+    paddingTop: 8,
+    paddingHorizontal: 12,
   },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 2,
     gap: 8,
+  },
+  versionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  versionPillText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
 });

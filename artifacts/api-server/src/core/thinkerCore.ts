@@ -1,5 +1,5 @@
 import { llmStream } from "../lib/llm.js";
-import { runIntentAgent } from "../agents/intentAgent.js";
+import { runIntentAgent, getLanguageName } from "../agents/intentAgent.js";
 import { runClarificationAgent, SIGNATURE_QUESTION } from "../agents/clarificationAgent.js";
 import { runStrategyAgent } from "../agents/strategyAgent.js";
 import { runPlannerAgent } from "../agents/plannerAgent.js";
@@ -19,14 +19,19 @@ import type {
   NextAction,
   RoutingHistoryEntry,
   AgentLog,
+  VersionSnapshot,
+  DecisionMemoryEntry,
 } from "../types/pipeline.js";
 
-const DIRECT_CHAT_SYSTEM = `You are Thinker AI — a highly capable autonomous AI assistant.
+const DIRECT_CHAT_SYSTEM = (lang: string) =>
+  `You are Thinker AI — a highly capable autonomous AI assistant.
 
 Answer directly, accurately, and helpfully. Format with markdown.
 - Bold for key terms
 - Code blocks with language tags for code
-- Concise but complete — no filler`;
+- Concise but complete — no filler
+
+IMPORTANT: Respond in ${lang === "en" ? "English" : `the user's language (detected: ${lang})`}. Match the language the user wrote in.`;
 
 // ── Loop detection thresholds (Section 8.5) ─────────────────────────────────
 const LOOP_LIMITS: Record<string, number> = {
@@ -37,7 +42,23 @@ const LOOP_LIMITS: Record<string, number> = {
   consensus_cycle: 2,
 };
 
-// ── Dynamic Routing Engine (Section 20) ─────────────────────────────────────
+// ── Decision Memory detection patterns ──────────────────────────────────────
+const DECISION_PATTERNS = [
+  /\b(always|never|from now on|for all my projects|every time|remember that|save this)\b/i,
+  /\b(use only|don't use|prefer|avoid|must use|must not)\b.{5,}/i,
+];
+
+function detectDecisionMemory(message: string): DecisionMemoryEntry | null {
+  const matched = DECISION_PATTERNS.some((p) => p.test(message));
+  if (!matched) return null;
+  return {
+    rule: message.slice(0, 200),
+    detectedAt: Date.now(),
+    applies_to: "all_projects",
+  };
+}
+
+// ── Dynamic Routing Engine ───────────────────────────────────────────────────
 function logRouting(
   state: PipelineState,
   agent: string,
@@ -67,6 +88,25 @@ function logAgent(state: PipelineState, log: AgentLog): void {
   state.agentLogs.push(log);
 }
 
+function saveVersion(state: PipelineState, description: string): number {
+  if (!state.builderOutput) return state.current_version;
+  const newVersion = state.current_version + 1;
+  const snapshot: VersionSnapshot = {
+    version_number: newVersion,
+    content: state.builderOutput.content,
+    artifactType: state.builderOutput.artifactType,
+    timestamp: Date.now(),
+    description,
+  };
+  // Keep only last 10 versions
+  if (state.version_history.length >= 10) {
+    state.version_history.shift();
+  }
+  state.version_history.push(snapshot);
+  state.current_version = newVersion;
+  return newVersion;
+}
+
 // ── Thinker Core ─────────────────────────────────────────────────────────────
 export async function runThinkerCore(
   message: string,
@@ -79,6 +119,15 @@ export async function runThinkerCore(
     signatureAnswered?: boolean;
     existingRequirements?: Record<string, string>;
     domain?: string;
+    blueprintApproved?: boolean;
+    existingPlan?: unknown[];
+    fixType?: "small" | "medium" | "full_rebuild";
+    medium_fix_count?: number;
+    full_rebuild_count?: number;
+    detectedLanguage?: string;
+    decisionMemory?: DecisionMemoryEntry[];
+    versionHistory?: VersionSnapshot[];
+    currentVersion?: number;
   }
 ): Promise<void> {
   const startTime = Date.now();
@@ -90,6 +139,8 @@ export async function runThinkerCore(
     intentType: "chat",
     thinkingLevel: options?.thinkingLevelOverride ?? "low",
     planTier,
+
+    detectedLanguage: options?.detectedLanguage ?? "en",
 
     requirements: options?.existingRequirements ?? {},
     requirementsComplete: false,
@@ -104,7 +155,10 @@ export async function runThinkerCore(
     clarificationLayers: [],
     goalDiscoveryMode: false,
 
+    decisionMemory: options?.decisionMemory ?? [],
+
     plan: [],
+    blueprintApproved: options?.blueprintApproved ?? false,
     strategyBrief: null,
     researchFindings: [],
     builderOutput: null,
@@ -112,6 +166,11 @@ export async function runThinkerCore(
     criticResult: null,
     judgeResult: null,
     consensusResult: null,
+
+    version_history: options?.versionHistory ?? [],
+    current_version: options?.currentVersion ?? 0,
+    medium_fix_count: options?.medium_fix_count ?? 0,
+    full_rebuild_count: options?.full_rebuild_count ?? 0,
 
     current_agent: "intent",
     routing_history: [],
@@ -127,19 +186,40 @@ export async function runThinkerCore(
     agentLogs: [],
   };
 
+  // ── Check for Decision Memory ────────────────────────────────────────────
+  const newDecision = detectDecisionMemory(message);
+  if (newDecision) {
+    state.decisionMemory.push(newDecision);
+    emit({
+      type: "decision_saved",
+      rule: newDecision.rule,
+      confirmation: `Saved — I'll remember this for all your future projects. You can change it anytime.`,
+    });
+  }
+
   // ── 1. Intent Agent ─────────────────────────────────────────────────────
   const intentStart = Date.now();
   emit({ type: "agent_start", agent: "intent", label: "Analyzing your request..." });
   const intentResult = await runIntentAgent(message, history);
   state.intentType = intentResult.intent;
   state.thinkingLevel = options?.thinkingLevelOverride ?? intentResult.thinkingLevel;
-  state.current_agent = "intent";
+
+  // Language detection
+  const lang = options?.detectedLanguage ?? intentResult.detectedLanguage ?? "en";
+  state.detectedLanguage = lang;
+  if (lang !== "en") {
+    emit({
+      type: "language_detected",
+      language: lang,
+      languageName: getLanguageName(lang),
+    });
+  }
 
   logRouting(state, "intent", intentResult.next_action, intentResult.reason);
   logAgent(state, {
     agent_name: "intent",
     input_summary: `Message: "${message.slice(0, 80)}"`,
-    output_summary: `Intent: ${intentResult.intent}, Level: ${state.thinkingLevel}, Confidence: ${intentResult.confidence}%`,
+    output_summary: `Intent: ${intentResult.intent}, Level: ${state.thinkingLevel}, Confidence: ${intentResult.confidence}%, Lang: ${lang}`,
     duration_ms: Date.now() - intentStart,
     status: "success",
     confidence: intentResult.confidence,
@@ -172,7 +252,6 @@ export async function runThinkerCore(
   });
 
   // ── 2. Direct Chat Path ─────────────────────────────────────────────────
-  // Low thinking: always direct answer, regardless of intent complexity
   const forceDirectAnswer =
     state.thinkingLevel === "low" ||
     intentResult.next_action === "direct_answer" ||
@@ -185,7 +264,7 @@ export async function runThinkerCore(
         ...history,
         { role: "user", content: message },
       ];
-      await llmStream(DIRECT_CHAT_SYSTEM, chatMessages, "mid", (text) =>
+      await llmStream(DIRECT_CHAT_SYSTEM(lang), chatMessages, "mid", (text) =>
         emit({ type: "content", text })
       );
     } catch {
@@ -218,6 +297,11 @@ export async function runThinkerCore(
   state.goalDiscoveryMode = clarification.goalDiscoveryMode;
   state.requirements = { ...state.requirements, ...clarification.requirements };
 
+  // Inject decision memory into requirements
+  if (state.decisionMemory.length > 0) {
+    state.requirements["_decision_memory"] = state.decisionMemory.map((d) => d.rule).join("; ");
+  }
+
   logRouting(state, "clarification", clarification.next_action, clarification.reason);
   logAgent(state, {
     agent_name: "clarification",
@@ -227,6 +311,8 @@ export async function runThinkerCore(
     status: "success",
     retry_count: 0,
     failover_cost: 0,
+    clarification_depth: state.clarificationDepth,
+    signature_q_answered: state.signatureQuestionAnswered,
   });
   emit({
     type: "agent_done",
@@ -252,7 +338,6 @@ export async function runThinkerCore(
   }
 
   // ── 4. Signature Question (Section 5.2.5) ───────────────────────────────
-  // Must fire on every project-type request before Builder, unless already answered
   if (clarification.signatureQuestionNeeded && !state.signatureQuestionAnswered && !isFeatureGated("smart_clarification", planTier)) {
     emit({ type: "signature_question", question: SIGNATURE_QUESTION });
     emit({ type: "done", status: "complete" });
@@ -262,7 +347,6 @@ export async function runThinkerCore(
   state.requirementsComplete = true;
 
   // ── 5. Strategy Agent (Section 5.12) ────────────────────────────────────
-  // Runs after Clarification, before Planner, on project requests. Pro+ only.
   if (!isFeatureGated("strategy_agent", planTier)) {
     const stratStart = Date.now();
     state.current_agent = "strategy";
@@ -317,12 +401,18 @@ export async function runThinkerCore(
 
   // ── 6. Planner Agent ────────────────────────────────────────────────────
   let plannerCycles = 0;
-  let skipPlanner = false; // set true when Judge rejects → retry Builder only
+  let skipPlanner = false;
+
+  // If blueprint was already approved, restore existing plan
+  if (options?.blueprintApproved && options?.existingPlan && Array.isArray(options.existingPlan)) {
+    state.plan = options.existingPlan as typeof state.plan;
+    state.blueprintApproved = true;
+    skipPlanner = true;
+  }
 
   plannerLoop: while (true) {
     plannerCycles += 1;
 
-    // ── Planner + Research (skipped when Judge sends back to Builder only) ──
     if (!skipPlanner) {
       const planStart = Date.now();
       state.current_agent = "planner";
@@ -350,6 +440,24 @@ export async function runThinkerCore(
       });
       emit({ type: "agent_done", agent: "planner", data: { steps: planResult.steps.length } });
 
+      // ── Blueprint Approval Gate (Section 16, Stage 2) ──────────────────
+      // For High/Consensus thinking, show blueprint and wait for user approval
+      // Skip if already approved in this session
+      if (!state.blueprintApproved && (state.thinkingLevel === "high" || state.thinkingLevel === "consensus")) {
+        state.status = "blueprint_review";
+        const techStack = inferTechStack(state.intentType, state.requirements);
+        const complexity = planResult.steps.length <= 3 ? "Simple" : planResult.steps.length <= 7 ? "Medium" : "Complex";
+
+        emit({
+          type: "blueprint_ready",
+          steps: planResult.steps,
+          techStack,
+          estimatedComplexity: complexity,
+        });
+        emit({ type: "done", status: "complete" });
+        return;
+      }
+
       // ── 7. Research Agent (optional, Section 5.4) ──────────────────────
       const researchSteps = planResult.steps.filter((s) => s.needsResearch);
       const canUseResearch = !isFeatureGated("research_agent", planTier);
@@ -372,11 +480,9 @@ export async function runThinkerCore(
         emit({ type: "agent_done", agent: "research", data: { findings: state.researchFindings.length } });
       }
     }
-    skipPlanner = false; // reset after every iteration
+    skipPlanner = false;
 
     // ── Medium Thinking Gate ─────────────────────────────────────────────
-    // Medium level: skip builder/design/critic/judge/consensus
-    // Output the plan + research as the final deliverable
     if (state.thinkingLevel === "medium") {
       const planSummary = state.plan
         .map((s, i) => `**${i + 1}. ${s.description}**${s.needsResearch ? " *(research-backed)*" : ""}`)
@@ -399,7 +505,6 @@ export async function runThinkerCore(
     let lastReviewerResult = state.reviewerResult;
 
     builderReviewerLoop: while (true) {
-      // Check for image steps → route to Design Agent
       const imageSteps = state.plan.filter((s) => s.outputType === "image");
       const codeSteps = state.plan.filter((s) => s.outputType !== "image");
 
@@ -454,16 +559,25 @@ export async function runThinkerCore(
 
         state.builderOutput = builderOutput;
         lastBuilderOutput = builderOutput;
+
+        // Save version on every builder output
+        const versionNum = saveVersion(state, `Build attempt ${builderRetries + 1}`);
+        emit({
+          type: "version_saved",
+          version_number: versionNum,
+          description: `Version ${versionNum} — ${builderOutput.artifactType} output`,
+        });
+
         logAgent(state, {
           agent_name: "builder",
           input_summary: `Goal: "${message.slice(0, 60)}", Steps: ${codeSteps.length}`,
-          output_summary: `Type: ${builderOutput.artifactType}, Length: ${builderOutput.content.length}`,
+          output_summary: `Type: ${builderOutput.artifactType}, Length: ${builderOutput.content.length}, Version: ${versionNum}`,
           duration_ms: Date.now() - buildStart,
           status: "success",
           retry_count: builderRetries,
           failover_cost: 0,
         });
-        emit({ type: "agent_done", agent: "builder", data: { type: builderOutput.artifactType } });
+        emit({ type: "agent_done", agent: "builder", data: { type: builderOutput.artifactType, version: versionNum } });
 
         // ── Reviewer Agent ─────────────────────────────────────────
         const reviewStart = Date.now();
@@ -487,14 +601,11 @@ export async function runThinkerCore(
         });
         emit({ type: "agent_done", agent: "reviewer", data: { passed: reviewerResult.passed } });
 
-        // Routing after Reviewer
         const hasHighSeverity = reviewerResult.issues.some((i) => i.severity === "high");
 
         if (reviewerResult.next_action === "replan") {
-          // Reviewer says the plan itself is wrong
           incrementLoop(state, "planner_cycle");
           if (isLoopExceeded(state, "planner_cycle")) {
-            // Too many planner cycles — return to Clarification
             emit({
               type: "clarification_needed",
               questions: [
@@ -510,7 +621,6 @@ export async function runThinkerCore(
             emit({ type: "done", status: "complete" });
             return;
           }
-          // Go back to Planner with failure context
           emit({ type: "pipeline_retry", agent: "planner", attempt: plannerCycles + 1 });
           continue plannerLoop;
         }
@@ -533,16 +643,13 @@ export async function runThinkerCore(
           continue builderReviewerLoop;
         }
 
-        // Reviewer passed (or only low/medium issues) → continue
         break builderReviewerLoop;
       } else {
-        // Only image steps — break builder loop
         break builderReviewerLoop;
       }
     } // end builderReviewerLoop
 
     // ── 9. Critic Agent ──────────────────────────────────────────────────
-    // NOTE: Critic runs WITHOUT seeing Reviewer verdict first (Section 8.2)
     if (lastBuilderOutput) {
       const criticStart = Date.now();
       state.current_agent = "critic";
@@ -587,7 +694,6 @@ export async function runThinkerCore(
       });
       emit({ type: "agent_done", agent: "judge", data: { approved: judgeResult.approved, score: judgeResult.totalScore } });
 
-      // Judge routing — retry Builder only, NOT Planner
       if (!judgeResult.approved && !judgeResult.borderline) {
         incrementLoop(state, "builder");
         if (isLoopExceeded(state, "builder")) {
@@ -600,7 +706,6 @@ export async function runThinkerCore(
           emit({ type: "done", status: "halted" });
           return;
         }
-        // Skip Planner on next iteration — only re-run Builder
         skipPlanner = true;
         emit({ type: "pipeline_retry", agent: "builder", attempt: (state.loop_counts["builder"] ?? 0) + 1 });
         continue plannerLoop;
@@ -611,7 +716,7 @@ export async function runThinkerCore(
         state.reviewerResult.passed && state.criticResult.overallSeverity === "high";
       const highRisk = isHighRiskContent(lastBuilderOutput.content);
       const needsConsensus =
-        state.thinkingLevel === "consensus" || // always run if user selected consensus level
+        state.thinkingLevel === "consensus" ||
         judgeResult.borderline ||
         reviewerCriticDisagree ||
         highRisk;
@@ -657,31 +762,35 @@ export async function runThinkerCore(
         if (consensusResult.finalVerdict === "reject") {
           incrementLoop(state, "consensus_cycle");
           if (isLoopExceeded(state, "consensus_cycle")) {
-            // Present best available output with quality caveats
             emit({
               type: "content",
               text: "\n\n---\n> ⚠️ **Quality Notice**: This deliverable did not fully pass quality checks. Review carefully before use, especially around sensitive areas.",
             });
           } else {
-            // Try rebuilding
             continue plannerLoop;
           }
         }
       }
 
-      // All good — break the planner loop
       break plannerLoop;
     }
 
-    // If no builder output, break to avoid infinite loop
     break plannerLoop;
   } // end plannerLoop
 
   // ── 12. Done ──────────────────────────────────────────────────────────────
   state.status = "complete";
-  const totalDuration = Date.now() - startTime;
-  emit({
-    type: "done",
-    status: "complete",
-  });
+  emit({ type: "done", status: "complete" });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function inferTechStack(intentType: string, requirements: Record<string, string>): string {
+  const platform = requirements["platform"] ?? "";
+  if (intentType === "app") {
+    if (/mobile|ios|android/.test(platform)) return "React Native + Expo · Node.js API · PostgreSQL";
+    return "React + Vite · Node.js + Express · PostgreSQL";
+  }
+  if (intentType === "website") return "React + Vite · Tailwind CSS · Static hosting";
+  if (intentType === "game") return "HTML5 Canvas · JavaScript · Web Audio API";
+  return "Node.js · TypeScript · REST API";
 }
