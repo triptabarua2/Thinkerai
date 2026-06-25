@@ -20,6 +20,7 @@ import { ClarificationCard, type ClarifyData } from "@/components/ClarificationC
 import { MessageBubble } from "@/components/MessageBubble";
 import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
 import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
+import { ThinkingLevelPicker, type ThinkingLevel } from "@/components/ThinkingLevelPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
@@ -70,6 +71,7 @@ export default function ChatScreen() {
   const [showTyping, setShowTyping] = useState(false);
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
   const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("medium");
 
   // Pipeline state
   const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>(buildInitialSteps());
@@ -280,7 +282,7 @@ export default function ChatScreen() {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        body: JSON.stringify({ messages: chatHistory }),
+        body: JSON.stringify({ messages: chatHistory, thinkingLevel }),
       });
 
       if (!response.ok) throw new Error(`Error: ${response.status}`);
@@ -400,10 +402,11 @@ export default function ChatScreen() {
               }
 
               case "thinking_summary": {
-                const level = event.thinkingLevel as string;
+                const level = event.thinkingLevel as ThinkingLevel;
                 const credits = event.estimatedCredits as number;
                 const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
                 setPipelineLabel(`${levelLabel} Thinking · ~${credits} credits`);
+                setThinkingLevel(level);
                 break;
               }
 
@@ -619,6 +622,13 @@ export default function ChatScreen() {
             },
           ]}
         >
+          <View style={styles.toolbar}>
+            <ThinkingLevelPicker
+              value={thinkingLevel}
+              onChange={setThinkingLevel}
+              disabled={isStreaming}
+            />
+          </View>
           <ChatInput onSend={handleSend} disabled={isStreaming || isClarifying} />
         </View>
       </KeyboardAvoidingView>
@@ -703,5 +713,13 @@ const styles = StyleSheet.create({
   composerWrap: {
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 2,
+    gap: 8,
   },
 });
