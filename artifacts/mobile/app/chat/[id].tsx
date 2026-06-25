@@ -816,6 +816,17 @@ export default function ChatScreen() {
           />
         </View>
       </KeyboardAvoidingView>
+
+      {/* Credit Confirmation Modal */}
+      <CreditConfirmModal
+        visible={creditModalVisible}
+        action={`${thinkingLevel} thinking pipeline`}
+        credits={CREDIT_COST[thinkingLevel]}
+        balance={CREDIT_BALANCE}
+        thinkingLevel={thinkingLevel}
+        onConfirm={handleCreditConfirm}
+        onCancel={handleCreditCancel}
+      />
     </View>
   );
 }
