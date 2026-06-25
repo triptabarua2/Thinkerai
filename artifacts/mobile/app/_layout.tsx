@@ -25,6 +25,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
     </Stack>
   );
 }

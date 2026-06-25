@@ -627,40 +627,6 @@ def process_file(filepath: str) -> dict:
 > ⚡ Connect Thinker AI to process and analyze your specific files.`,
   ],
 
-  planner: [
-    `# Planner Agent — Strategic Roadmap 🗺️
-
-I'm your **Planner Agent**. Here's a strategic planning framework:
-
-## Project Execution Plan
-
-### Phase 1: Foundation (Week 1-2)
-- [ ] Define clear objectives and success metrics
-- [ ] Identify key stakeholders and resources
-- [ ] Set up infrastructure and tooling
-- [ ] **Milestone:** Environment ready, team aligned
-
-### Phase 2: Build (Week 3-6)
-- [ ] Core feature development
-- [ ] Integration and testing
-- [ ] Performance optimization
-- [ ] **Milestone:** MVP functional
-
-### Phase 3: Launch (Week 7-8)
-- [ ] Beta testing with real users
-- [ ] Gather feedback and iterate
-- [ ] Production deployment
-- [ ] **Milestone:** Live product with users
-
-### Phase 4: Scale (Ongoing)
-- [ ] Monitor analytics and KPIs
-- [ ] Expand features based on demand
-- [ ] Optimize for growth
-- [ ] **Milestone:** Product-market fit achieved
-
-> 🔑 Connect Thinker AI to create a detailed plan for YOUR specific project.`,
-  ],
-
   ceo: [
     `# Thinker AI — Autonomous Operating System 🧠
 

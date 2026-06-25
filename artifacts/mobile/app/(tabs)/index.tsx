@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -36,6 +37,8 @@ const QUICK_ACTIONS: {
   { id: "plan", label: "Plan", icon: "map", agentType: "planner", desc: "Strategy & goals" },
 ];
 
+const ONBOARDING_KEY = "@thinkai_onboarded_v1";
+
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -49,6 +52,12 @@ export default function HomeScreen() {
     profileSheetOpen,
     setProfileSheetOpen,
   } = useApp();
+
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
+      if (!val) router.replace("/onboarding" as any);
+    });
+  }, []);
 
   async function handleQuickAction(agentType: AgentType) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
