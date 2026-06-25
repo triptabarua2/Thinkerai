@@ -51,7 +51,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
   try {
     await runThinkerCore(userMessage, history, emit, {
-      planTier: planTier ?? "free",
+      planTier: (["free", "pro", "enterprise"] as PlanTier[]).includes(planTier as PlanTier)
+      ? (planTier as PlanTier)
+      : "free",
       thinkingLevelOverride: thinkingLevel,
       signatureAnswer,
       signatureAnswered: signatureAnswered ?? false,

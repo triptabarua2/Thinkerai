@@ -317,56 +317,62 @@ export async function runThinkerCore(
 
   // ── 6. Planner Agent ────────────────────────────────────────────────────
   let plannerCycles = 0;
+  let skipPlanner = false; // set true when Judge rejects → retry Builder only
 
   plannerLoop: while (true) {
     plannerCycles += 1;
-    const planStart = Date.now();
-    state.current_agent = "planner";
-    state.status = "planning";
-    emit({ type: "agent_start", agent: "planner", label: "Creating execution plan..." });
 
-    const planResult = await runPlannerAgent(
-      message,
-      state.intentType,
-      state.requirements,
-      state.strategyBrief,
-      options?.domain
-    );
+    // ── Planner + Research (skipped when Judge sends back to Builder only) ──
+    if (!skipPlanner) {
+      const planStart = Date.now();
+      state.current_agent = "planner";
+      state.status = "planning";
+      emit({ type: "agent_start", agent: "planner", label: "Creating execution plan..." });
 
-    state.plan = planResult.steps;
-    logRouting(state, "planner", planResult.next_action, planResult.reason);
-    logAgent(state, {
-      agent_name: "planner",
-      input_summary: `Goal: "${message.slice(0, 60)}"`,
-      output_summary: `Steps: ${planResult.steps.length}, Types: ${planResult.steps.map((s) => s.outputType).join(",")}`,
-      duration_ms: Date.now() - planStart,
-      status: "success",
-      retry_count: 0,
-      failover_cost: 0,
-    });
-    emit({ type: "agent_done", agent: "planner", data: { steps: planResult.steps.length } });
+      const planResult = await runPlannerAgent(
+        message,
+        state.intentType,
+        state.requirements,
+        state.strategyBrief,
+        options?.domain
+      );
 
-    // ── 7. Research Agent (optional, Section 5.4) ────────────────────────
-    const researchSteps = planResult.steps.filter((s) => s.needsResearch);
-    const canUseResearch = !isFeatureGated("research_agent", planTier);
-
-    if (researchSteps.length > 0 && canUseResearch) {
-      const resStart = Date.now();
-      state.current_agent = "research";
-      state.status = "researching";
-      emit({ type: "agent_start", agent: "research", label: "Gathering context..." });
-      state.researchFindings = await runResearchAgent(researchSteps, message);
+      state.plan = planResult.steps;
+      logRouting(state, "planner", planResult.next_action, planResult.reason);
       logAgent(state, {
-        agent_name: "research",
-        input_summary: `${researchSteps.length} steps need research`,
-        output_summary: `Found ${state.researchFindings.length} findings`,
-        duration_ms: Date.now() - resStart,
+        agent_name: "planner",
+        input_summary: `Goal: "${message.slice(0, 60)}"`,
+        output_summary: `Steps: ${planResult.steps.length}, Types: ${planResult.steps.map((s) => s.outputType).join(",")}`,
+        duration_ms: Date.now() - planStart,
         status: "success",
         retry_count: 0,
         failover_cost: 0,
       });
-      emit({ type: "agent_done", agent: "research", data: { findings: state.researchFindings.length } });
+      emit({ type: "agent_done", agent: "planner", data: { steps: planResult.steps.length } });
+
+      // ── 7. Research Agent (optional, Section 5.4) ──────────────────────
+      const researchSteps = planResult.steps.filter((s) => s.needsResearch);
+      const canUseResearch = !isFeatureGated("research_agent", planTier);
+
+      if (researchSteps.length > 0 && canUseResearch) {
+        const resStart = Date.now();
+        state.current_agent = "research";
+        state.status = "researching";
+        emit({ type: "agent_start", agent: "research", label: "Gathering context..." });
+        state.researchFindings = await runResearchAgent(researchSteps, message);
+        logAgent(state, {
+          agent_name: "research",
+          input_summary: `${researchSteps.length} steps need research`,
+          output_summary: `Found ${state.researchFindings.length} findings`,
+          duration_ms: Date.now() - resStart,
+          status: "success",
+          retry_count: 0,
+          failover_cost: 0,
+        });
+        emit({ type: "agent_done", agent: "research", data: { findings: state.researchFindings.length } });
+      }
     }
+    skipPlanner = false; // reset after every iteration
 
     // ── Medium Thinking Gate ─────────────────────────────────────────────
     // Medium level: skip builder/design/critic/judge/consensus
@@ -388,7 +394,7 @@ export async function runThinkerCore(
 
     // ── 8. Builder + Reviewer loop ────────────────────────────────────────
     let builderRetries = 0;
-    const reviewerRetries = 0;
+    let reviewerRetries = 0;
     let lastBuilderOutput = state.builderOutput;
     let lastReviewerResult = state.reviewerResult;
 
@@ -522,6 +528,7 @@ export async function runThinkerCore(
             return;
           }
           builderRetries += 1;
+          reviewerRetries += 1;
           emit({ type: "pipeline_retry", agent: "builder", attempt: builderRetries + 1 });
           continue builderReviewerLoop;
         }
@@ -580,14 +587,23 @@ export async function runThinkerCore(
       });
       emit({ type: "agent_done", agent: "judge", data: { approved: judgeResult.approved, score: judgeResult.totalScore } });
 
-      // Judge routing
+      // Judge routing — retry Builder only, NOT Planner
       if (!judgeResult.approved && !judgeResult.borderline) {
-        // Clearly failed — send back to Builder
         incrementLoop(state, "builder");
-        if (!isLoopExceeded(state, "builder")) {
-          emit({ type: "pipeline_retry", agent: "builder", attempt: (state.loop_counts["builder"] ?? 0) + 1 });
-          continue plannerLoop;
+        if (isLoopExceeded(state, "builder")) {
+          emit({
+            type: "pipeline_halt",
+            reason: "Builder failed Judge review too many times. Saving best attempt.",
+            completedSteps: 0,
+            totalSteps: state.plan.length,
+          });
+          emit({ type: "done", status: "halted" });
+          return;
         }
+        // Skip Planner on next iteration — only re-run Builder
+        skipPlanner = true;
+        emit({ type: "pipeline_retry", agent: "builder", attempt: (state.loop_counts["builder"] ?? 0) + 1 });
+        continue plannerLoop;
       }
 
       // ── 11. Consensus Agent (conditional, Section 6.4) ───────────────
