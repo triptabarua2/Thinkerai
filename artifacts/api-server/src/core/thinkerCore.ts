@@ -150,17 +150,35 @@ export async function runThinkerCore(
 
   // Show thinking summary to user (Section 16, Stage 1)
   const estimatedCredits = estimateSessionCredits(state.thinkingLevel);
-  if (intentResult.intent !== "chat") {
-    emit({
-      type: "thinking_summary",
-      summary: `I'll use **${state.thinkingLevel.charAt(0).toUpperCase() + state.thinkingLevel.slice(1)} Thinking** for this request — running the full agent pipeline.`,
-      thinkingLevel: state.thinkingLevel,
-      estimatedCredits,
-    });
-  }
+  const levelLabels: Record<ThinkingLevel, string> = {
+    low: "Quick Answer",
+    medium: "Medium Analysis",
+    high: "Deep Thinking",
+    consensus: "Consensus Validation",
+  };
+  emit({
+    type: "thinking_summary",
+    summary: `**${levelLabels[state.thinkingLevel]}** — ${
+      state.thinkingLevel === "low"
+        ? "answering directly."
+        : state.thinkingLevel === "medium"
+        ? "running analysis pipeline."
+        : state.thinkingLevel === "consensus"
+        ? "running full multi-model validation."
+        : "running full agent pipeline."
+    }`,
+    thinkingLevel: state.thinkingLevel,
+    estimatedCredits,
+  });
 
-  // ── 2. Direct Chat Path (next_action: direct_answer) ────────────────────
-  if (intentResult.next_action === "direct_answer" || intentResult.intent === "chat") {
+  // ── 2. Direct Chat Path ─────────────────────────────────────────────────
+  // Low thinking: always direct answer, regardless of intent complexity
+  const forceDirectAnswer =
+    state.thinkingLevel === "low" ||
+    intentResult.next_action === "direct_answer" ||
+    intentResult.intent === "chat";
+
+  if (forceDirectAnswer) {
     state.thinkCreditsUsed += 1;
     try {
       const chatMessages: { role: "user" | "assistant"; content: string }[] = [
@@ -348,6 +366,24 @@ export async function runThinkerCore(
         failover_cost: 0,
       });
       emit({ type: "agent_done", agent: "research", data: { findings: state.researchFindings.length } });
+    }
+
+    // ── Medium Thinking Gate ─────────────────────────────────────────────
+    // Medium level: skip builder/design/critic/judge/consensus
+    // Output the plan + research as the final deliverable
+    if (state.thinkingLevel === "medium") {
+      const planSummary = state.plan
+        .map((s, i) => `**${i + 1}. ${s.description}**${s.needsResearch ? " *(research-backed)*" : ""}`)
+        .join("\n");
+      const researchContext =
+        state.researchFindings.length > 0
+          ? `\n\n**Research findings:**\n${state.researchFindings.map((f) => `- ${f}`).join("\n")}`
+          : "";
+      emit({
+        type: "content",
+        text: `Here's my analysis and plan:\n\n${planSummary}${researchContext}\n\n*Medium Thinking used ${state.plan.length} planning steps. Upgrade to High Thinking for full execution.*`,
+      });
+      break plannerLoop;
     }
 
     // ── 8. Builder + Reviewer loop ────────────────────────────────────────
@@ -558,7 +594,11 @@ export async function runThinkerCore(
       const reviewerCriticDisagree =
         state.reviewerResult.passed && state.criticResult.overallSeverity === "high";
       const highRisk = isHighRiskContent(lastBuilderOutput.content);
-      const needsConsensus = judgeResult.borderline || reviewerCriticDisagree || highRisk;
+      const needsConsensus =
+        state.thinkingLevel === "consensus" || // always run if user selected consensus level
+        judgeResult.borderline ||
+        reviewerCriticDisagree ||
+        highRisk;
       const canUseConsensus = !isFeatureGated("consensus_agent", planTier);
 
       if (needsConsensus && canUseConsensus) {
