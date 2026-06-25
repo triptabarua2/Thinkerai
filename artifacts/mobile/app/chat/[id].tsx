@@ -20,6 +20,8 @@ import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
 import { CreditConfirmModal } from "@/components/CreditConfirmModal";
 import { DecisionMemoryBanner } from "@/components/DecisionMemoryBanner";
+import { FixCounterBar, MEDIUM_LIMIT, REBUILD_LIMIT } from "@/components/FixCounterBar";
+import { FixLimitModal } from "@/components/FixLimitModal";
 import { MessageBubble } from "@/components/MessageBubble";
 import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
 import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
@@ -73,7 +75,7 @@ export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id, q } = useLocalSearchParams<{ id: string; q?: string }>();
-  const { getConversation, updateConversation } = useApp();
+  const { getConversation, updateConversation, createConversation } = useApp();
 
   const conv = getConversation(id ?? "");
   const [messages, setMessages] = useState<Message[]>(conv?.messages ?? []);
@@ -95,6 +97,11 @@ export default function ChatScreen() {
   const [pendingMessage, setPendingMessage] = useState("");
   const CREDIT_COST: Record<ThinkingLevel, number> = { low: 1, medium: 9, high: 66, consensus: 75 };
   const CREDIT_BALANCE = 500; // TODO: fetch from user profile
+
+  // Fix counters
+  const [mediumFixCount, setMediumFixCount] = useState(conv?.medium_fix_count ?? 0);
+  const [fullRebuildCount, setFullRebuildCount] = useState(conv?.full_rebuild_count ?? 0);
+  const [fixLimitModal, setFixLimitModal] = useState<{ visible: boolean; type: "medium" | "rebuild" }>({ visible: false, type: "medium" });
 
   // Pipeline state
   const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>(buildInitialSteps());
@@ -130,9 +137,43 @@ export default function ChatScreen() {
     );
   }
 
+  function detectFixType(text: string): "small" | "medium" | "rebuild" | null {
+    const lower = text.toLowerCase();
+    const isRebuild = /\b(rebuild|rewrite|redo|start over|from scratch|completely redo|build again)\b/.test(lower);
+    const isMedium = /\b(fix|change|update|adjust|tweak|improve|modify|edit|refactor|add|remove|rename|move)\b/.test(lower);
+    if (isRebuild) return "rebuild";
+    if (isMedium) return "medium";
+    return null;
+  }
+
   async function handleSend(text: string) {
     if (isStreaming || !id) return;
-    // Gate expensive thinking levels behind credit confirmation
+
+    // Fix counter enforcement
+    const fixType = detectFixType(text);
+    if (fixType === "rebuild" && fullRebuildCount >= REBUILD_LIMIT) {
+      setFixLimitModal({ visible: true, type: "rebuild" });
+      setPendingMessage(text);
+      return;
+    }
+    if (fixType === "medium" && mediumFixCount >= MEDIUM_LIMIT) {
+      setFixLimitModal({ visible: true, type: "medium" });
+      setPendingMessage(text);
+      return;
+    }
+
+    // Increment counters
+    if (fixType === "rebuild") {
+      const next = fullRebuildCount + 1;
+      setFullRebuildCount(next);
+      updateConversation(id, { full_rebuild_count: next });
+    } else if (fixType === "medium") {
+      const next = mediumFixCount + 1;
+      setMediumFixCount(next);
+      updateConversation(id, { medium_fix_count: next });
+    }
+
+    // Credit gate for expensive thinking levels
     if (thinkingLevel !== "low" && CREDIT_COST[thinkingLevel] > 3) {
       setPendingMessage(text);
       setCreditModalVisible(true);
@@ -149,6 +190,27 @@ export default function ChatScreen() {
 
   function handleCreditCancel() {
     setCreditModalVisible(false);
+    setPendingMessage("");
+  }
+
+  function handleFixLimitScopeDown() {
+    setFixLimitModal({ visible: false, type: "medium" });
+    // Pre-fill a scope-narrowing prompt
+    sendMessage("What is the single most important issue to fix right now? Focus only on that.");
+    setPendingMessage("");
+  }
+
+  async function handleFixLimitStartFresh() {
+    setFixLimitModal({ visible: false, type: "medium" });
+    if (!id) return;
+    const freshId = await createConversation("New Chat (fresh start)");
+    router.replace({ pathname: "/chat/[id]", params: { id: freshId } });
+  }
+
+  function handleFixLimitDismiss() {
+    // Allow continuing despite limit
+    setFixLimitModal({ visible: false, type: "medium" });
+    sendMessage(pendingMessage);
     setPendingMessage("");
   }
 
@@ -785,6 +847,15 @@ export default function ChatScreen() {
             },
           ]}
         >
+          <FixCounterBar
+            mediumFixCount={mediumFixCount}
+            fullRebuildCount={fullRebuildCount}
+            onReset={() => {
+              setMediumFixCount(0);
+              setFullRebuildCount(0);
+              if (id) updateConversation(id, { medium_fix_count: 0, full_rebuild_count: 0 });
+            }}
+          />
           <View style={styles.toolbar}>
             <ThinkingLevelPicker
               value={thinkingLevel}
@@ -826,6 +897,15 @@ export default function ChatScreen() {
         thinkingLevel={thinkingLevel}
         onConfirm={handleCreditConfirm}
         onCancel={handleCreditCancel}
+      />
+
+      {/* Fix Limit Modal */}
+      <FixLimitModal
+        visible={fixLimitModal.visible}
+        limitType={fixLimitModal.type}
+        onScopeDown={handleFixLimitScopeDown}
+        onStartFresh={handleFixLimitStartFresh}
+        onDismiss={handleFixLimitDismiss}
       />
     </View>
   );
