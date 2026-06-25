@@ -34,7 +34,7 @@ export async function handleRequest(req: Request, res: Response) {
 - Authentication systems
 - Full-stack SaaS platforms
 
-> ⚡ **Connect an API key** (DeepSeek is free at platform.deepseek.com) to unlock real AI-powered code generation for your specific project.`,
+> ⚡ **Connect your Thinker AI API key** to unlock real AI-powered code generation for your specific project.`,
 
     `# Here's Your Code Solution 💻
 
@@ -63,7 +63,7 @@ const optimizedSearch = debounce((query) => {
 - ✅ Handles rapid calls efficiently  
 - ✅ Clean closure pattern
 
-> 🔑 Add your DeepSeek API key to get code tailored to YOUR specific requirements.`,
+> 🔑 Connect Thinker AI to get code tailored to YOUR specific requirements.`,
   ],
 
   research: [
@@ -91,7 +91,7 @@ I'm your **Research Agent**. Here's a structured research overview:
 3. **Analyze patterns** — identify key themes
 4. **Synthesize insights** — draw actionable conclusions
 
-> 🔑 Connect DeepSeek (free tier at platform.deepseek.com) for real-time research on any topic you specify.`,
+> 🔑 Connect Thinker AI for real-time research on any topic you specify.`,
   ],
 
   content: [
@@ -120,7 +120,7 @@ AI operating systems represent this next frontier — invisible infrastructure t
 
 *Ready to create content for your specific topic, audience, and tone.*
 
-> 🔑 Add DeepSeek API (free) to generate custom content for your exact needs.`,
+> 🔑 Connect Thinker AI to generate custom content for your exact needs.`,
   ],
 
   analysis: [
@@ -156,7 +156,7 @@ Confidence Level:    ████████░░  80%
 2. **Priority 2** — Build strategic partnerships
 3. **Priority 3** — Iterate based on early feedback
 
-> 🔑 Connect DeepSeek API (free) to analyze YOUR specific data and scenarios.`,
+> 🔑 Connect Thinker AI to analyze YOUR specific data and scenarios.`,
   ],
 
   automation: [
@@ -202,7 +202,7 @@ workflow:
 - ✅ CI/CD workflows
 - ✅ Social media scheduling
 
-> 🔑 Add DeepSeek API (free) to build automation for YOUR specific use case.`,
+> 🔑 Connect Thinker AI to build automation for YOUR specific use case.`,
   ],
 
   planner: [
@@ -236,7 +236,7 @@ I'm your **Planner Agent**. Here's a strategic planning framework:
 - [ ] Optimize for growth
 - [ ] **Milestone:** Product-market fit achieved
 
-> 🔑 Connect DeepSeek API (free) to create a detailed plan for YOUR specific project.`,
+> 🔑 Connect Thinker AI to create a detailed plan for YOUR specific project.`,
   ],
 
   browser: [
@@ -273,7 +273,7 @@ async function scrapeData(url: string) {
 - E2E testing with Playwright
 - Multi-page navigation
 
-> ⚡ Connect Claude API to automate any website you describe.`,
+> ⚡ Connect Thinker AI to automate any website you describe.`,
   ],
 
   git: [
@@ -301,7 +301,7 @@ git push origin feature/user-auth
 - Conflict resolution
 - GitHub Actions CI/CD
 
-> ⚡ Connect Claude API for intelligent Git workflow design.`,
+> ⚡ Connect Thinker AI for intelligent Git workflow design.`,
   ],
 
   devops: [
@@ -338,7 +338,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 \`\`\`
 
-> ⚡ Connect Claude API for your specific infrastructure design.`,
+> ⚡ Connect Thinker AI for your specific infrastructure design.`,
   ],
 
   security: [
@@ -367,7 +367,7 @@ const hashed = await hash(password, { type: argon2id, memoryCost: 65536 });
 
 **OWASP Top 10 protection included in every audit.**
 
-> ⚡ Connect Claude API to audit your specific codebase.`,
+> ⚡ Connect Thinker AI to audit your specific codebase.`,
   ],
 
   qa: [
@@ -399,7 +399,7 @@ describe("UserService", () => {
 });
 \`\`\`
 
-> ⚡ Connect Claude API to write tests for your specific codebase.`,
+> ⚡ Connect Thinker AI to write tests for your specific codebase.`,
   ],
 
   memory: [
@@ -434,7 +434,7 @@ Semantic Memory (Vector DB)
 - Important decisions and reasoning
 - Files, code, and documentation you've shared
 
-> ⚡ Connect Claude API to build a personal knowledge base.`,
+> ⚡ Connect Thinker AI to build a personal knowledge base.`,
   ],
 
   video: [
@@ -462,7 +462,7 @@ I'm your **Video Agent**. Here's a complete video script:
 
 ---
 
-> ⚡ Connect Claude API for scripts tailored to your brand and audience.`,
+> ⚡ Connect Thinker AI for scripts tailored to your brand and audience.`,
   ],
 
   image: [
@@ -487,7 +487,7 @@ I'm your **Image Agent**. Here are optimized generation prompts:
 **Logo Design:**
 > Modern geometric logo for AI startup "Thinker AI", minimal, dark background, gradient purple to blue, vector style, --no text
 
-> ⚡ Connect Claude API to generate prompts for your specific visual needs.`,
+> ⚡ Connect Thinker AI to generate prompts for your specific visual needs.`,
   ],
 
   music: [
@@ -515,7 +515,7 @@ I'm your **Music Agent**. Here's a complete music brief:
 **Suno AI Prompt:**
 > Ambient electronic, 120bpm, A minor, cinematic, futuristic, driving synth bass, arpeggiated lead, lush pads, professional mix, no vocals
 
-> ⚡ Connect Claude API for music tailored to your project.`,
+> ⚡ Connect Thinker AI for music tailored to your project.`,
   ],
 
   canvas: [
@@ -551,7 +551,7 @@ graph TB
 - Mind maps & concept trees
 - Network topology diagrams
 
-> ⚡ Connect Claude API for diagrams of your specific system.`,
+> ⚡ Connect Thinker AI for diagrams of your specific system.`,
   ],
 
   report: [
@@ -588,7 +588,7 @@ Adoption Rate:        67%    Enterprise deployment accelerating
 | Data quality | Medium | High | Governance framework |
 | Regulation | Low | High | Compliance monitoring |
 
-> ⚡ Connect Claude API to analyze your specific data and generate custom reports.`,
+> ⚡ Connect Thinker AI to analyze your specific data and generate custom reports.`,
   ],
 
   file: [
@@ -624,7 +624,7 @@ def process_file(filepath: str) -> dict:
     return {"type": "unknown", "error": f"Unsupported format: {ext}"}
 \`\`\`
 
-> ⚡ Connect Claude API to process and analyze your specific files.`,
+> ⚡ Connect Thinker AI to process and analyze your specific files.`,
   ],
 
   planner: [
@@ -658,7 +658,7 @@ I'm your **Planner Agent**. Here's a strategic planning framework:
 - [ ] Optimize for growth
 - [ ] **Milestone:** Product-market fit achieved
 
-> 🔑 Connect Claude API to create a detailed plan for YOUR specific project.`,
+> 🔑 Connect Thinker AI to create a detailed plan for YOUR specific project.`,
   ],
 
   ceo: [
@@ -695,7 +695,7 @@ Just tell me what you want to accomplish. I'll:
 3. Assign the right agent
 4. Execute the task
 
-> ⚡ **Demo Mode Active** — Add a free DeepSeek API key at platform.deepseek.com to unlock full AI power.`,
+> ⚡ **Demo Mode Active** — Connect your Thinker AI API key to unlock full AI power.`,
 
     `# Understanding Your Request 🧠
 
@@ -721,7 +721,7 @@ As your **CEO Agent**, I'm analyzing this task and here's my initial assessment:
 
 I'm ready to proceed. What additional context can you share?
 
-> 🔑 Connect DeepSeek (free) or any API key to execute this task with real AI intelligence.`,
+> 🔑 Connect Thinker AI to execute this task with real AI intelligence.`,
   ],
 };
 
