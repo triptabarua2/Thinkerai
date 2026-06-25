@@ -18,6 +18,7 @@ import { AgentPanel } from "@/components/AgentPanel";
 import { BlueprintApprovalCard, type BlueprintStep } from "@/components/BlueprintApprovalCard";
 import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
+import { CreditConfirmModal } from "@/components/CreditConfirmModal";
 import { DecisionMemoryBanner } from "@/components/DecisionMemoryBanner";
 import { MessageBubble } from "@/components/MessageBubble";
 import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
@@ -89,6 +90,12 @@ export default function ChatScreen() {
   const [currentVersion, setCurrentVersion] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
 
+  // Credit confirmation
+  const [creditModalVisible, setCreditModalVisible] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState("");
+  const CREDIT_COST: Record<ThinkingLevel, number> = { low: 1, medium: 9, high: 66, consensus: 75 };
+  const CREDIT_BALANCE = 500; // TODO: fetch from user profile
+
   // Pipeline state
   const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>(buildInitialSteps());
   const [pipelineActive, setPipelineActive] = useState(false);
@@ -125,7 +132,24 @@ export default function ChatScreen() {
 
   async function handleSend(text: string) {
     if (isStreaming || !id) return;
+    // Gate expensive thinking levels behind credit confirmation
+    if (thinkingLevel !== "low" && CREDIT_COST[thinkingLevel] > 3) {
+      setPendingMessage(text);
+      setCreditModalVisible(true);
+      return;
+    }
     await sendMessage(text);
+  }
+
+  async function handleCreditConfirm() {
+    setCreditModalVisible(false);
+    await sendMessage(pendingMessage);
+    setPendingMessage("");
+  }
+
+  function handleCreditCancel() {
+    setCreditModalVisible(false);
+    setPendingMessage("");
   }
 
   handleSendRef.current = handleSend;
