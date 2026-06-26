@@ -15,6 +15,7 @@ export interface Message {
   content: string;
   agentType?: AgentType;
   timestamp: number;
+  language?: string;
 }
 
 export interface DecisionMemoryEntry {

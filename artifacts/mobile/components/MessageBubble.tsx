@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Message } from "@/context/AppContext";
 import { AGENTS } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
+import { isRTL } from "@/hooks/useRTL";
 
 interface Props {
   message: Message;
@@ -49,6 +50,11 @@ export function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
   const agent = message.agentType ? AGENTS[message.agentType] : null;
 
+  // RTL support for Arabic, Hebrew, Urdu, Farsi, etc. (§17.5)
+  const rtl = isRTL(message.language ?? "en");
+  const textAlign = rtl ? "right" : "left";
+  const wrapperDir = rtl ? { flexDirection: "row-reverse" as const } : {};
+
   const textColor = isUser ? "#FFFFFF" : colors.text;
   const codeBg = isUser ? "rgba(255,255,255,0.15)" : colors.border;
   const codeColor = isUser ? "#E0E0FF" : colors.accent;
@@ -60,6 +66,7 @@ export function MessageBubble({ message }: Props) {
       style={[
         styles.wrapper,
         isUser ? styles.wrapperUser : styles.wrapperAssistant,
+        wrapperDir,
       ]}
     >
       {!isUser && agent && (

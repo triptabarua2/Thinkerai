@@ -197,10 +197,55 @@ export async function runThinkerCore(
     });
   }
 
-  // ── 1. Intent Agent ─────────────────────────────────────────────────────
+  // ── 1. Intent Agent (§4.4.1 — skipped when domain already selected) ──────
   const intentStart = Date.now();
-  emit({ type: "agent_start", agent: "intent", label: "Analyzing your request..." });
-  const intentResult = await runIntentAgent(message, history);
+  let intentResult: Awaited<ReturnType<typeof runIntentAgent>>;
+  const domainPreSelected = !!options?.domain && options.domain !== "general";
+
+  if (domainPreSelected) {
+    // §4.4.2 Case 1: user picked domain → skip Intent, derive intent from domain
+    const domainToIntent: Record<string, import("../types/pipeline.js").IntentType> = {
+      coding: "app", devops: "app", security: "app", qa: "app",
+      design: "app", music: "task", video: "task", writing: "task",
+      research: "task", automation: "task",
+    };
+    const derivedIntent = domainToIntent[options.domain!] ?? "task";
+    emit({ type: "agent_start", agent: "intent", label: "Domain pre-selected — skipping classification..." });
+    intentResult = {
+      intent: derivedIntent,
+      confidence: 100,
+      thinkingLevel: options?.thinkingLevelOverride ?? "high",
+      domain: options.domain!,
+      detectedLanguage: options?.detectedLanguage ?? "en",
+      next_action: "proceed",
+      reason: `Domain pre-selected by user: ${options.domain}`,
+    };
+    logAgent(state, {
+      agent_name: "intent",
+      input_summary: `Domain pre-selected: ${options.domain}`,
+      output_summary: `Skipped Intent Agent — derived intent: ${derivedIntent}`,
+      duration_ms: Date.now() - intentStart,
+      status: "skipped",
+      confidence: 100,
+      retry_count: 0,
+      failover_cost: 0,
+    });
+  } else {
+    // §4.4.2 Case 2/3: no domain → run Intent Agent normally
+    emit({ type: "agent_start", agent: "intent", label: "Analyzing your request..." });
+    intentResult = await runIntentAgent(message, history);
+    logAgent(state, {
+      agent_name: "intent",
+      input_summary: `Message: "${message.slice(0, 80)}"`,
+      output_summary: `Intent: ${intentResult.intent}, Level: ${intentResult.thinkingLevel}, Confidence: ${intentResult.confidence}%, Lang: ${intentResult.detectedLanguage}`,
+      duration_ms: Date.now() - intentStart,
+      status: "success",
+      confidence: intentResult.confidence,
+      retry_count: 0,
+      failover_cost: 0,
+    });
+  }
+
   state.intentType = intentResult.intent;
   state.thinkingLevel = options?.thinkingLevelOverride ?? intentResult.thinkingLevel;
 
@@ -216,16 +261,6 @@ export async function runThinkerCore(
   }
 
   logRouting(state, "intent", intentResult.next_action, intentResult.reason);
-  logAgent(state, {
-    agent_name: "intent",
-    input_summary: `Message: "${message.slice(0, 80)}"`,
-    output_summary: `Intent: ${intentResult.intent}, Level: ${state.thinkingLevel}, Confidence: ${intentResult.confidence}%, Lang: ${lang}`,
-    duration_ms: Date.now() - intentStart,
-    status: "success",
-    confidence: intentResult.confidence,
-    retry_count: 0,
-    failover_cost: 0,
-  });
   emit({ type: "agent_done", agent: "intent", data: intentResult });
 
   // Show thinking summary to user (Section 16, Stage 1)

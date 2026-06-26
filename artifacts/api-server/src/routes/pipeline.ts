@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { runThinkerCore } from "../core/thinkerCore.js";
+import { saveConversation, saveMessage, saveDecisionMemory } from "../lib/db.js";
 import type { PipelineEvent, PlanTier, ThinkingLevel, DecisionMemoryEntry, VersionSnapshot } from "../types/pipeline.js";
 
 const router = Router();

@@ -33,6 +33,7 @@ import type { Message } from "@/context/AppContext";
 import { AGENTS, detectAgentType, type AgentType } from "@/lib/agents";
 import { getBaseUrl } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
+import { useRTL } from "@/hooks/useRTL";
 
 let msgCounter = 0;
 function genId(): string {
@@ -76,6 +77,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { id, q } = useLocalSearchParams<{ id: string; q?: string }>();
   const { getConversation, updateConversation, createConversation } = useApp();
+  useRTL(undefined);
 
   const conv = getConversation(id ?? "");
   const [messages, setMessages] = useState<Message[]>(conv?.messages ?? []);
@@ -425,6 +427,7 @@ export default function ChatScreen() {
           decisionMemory: decisionMemory.length > 0 ? decisionMemory : undefined,
           versionHistory: versionHistory.length > 0 ? versionHistory : undefined,
           currentVersion: currentVersion > 0 ? currentVersion : undefined,
+          conversationId: id,
         }),
       });
 
@@ -638,13 +641,13 @@ export default function ChatScreen() {
                   setShowTyping(false);
                   setMessages((prev) => [
                     ...prev,
-                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now(), language: detectedLanguage },
                   ]);
                   assistantAdded = true;
                 } else {
                   setMessages((prev) => {
                     const updated = [...prev];
-                    updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+                    updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent, language: detectedLanguage };
                     return updated;
                   });
                 }

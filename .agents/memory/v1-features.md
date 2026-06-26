@@ -29,3 +29,28 @@ description: All V1 spec features implemented — blueprint approval, version hi
 - Rollback is free (0 credits) — it just restores content from local state, no API call needed
 
 **Why:** Spec required these as V1 launch checklist items. Blueprint gate prevents wasted compute on wrong plans. Version history lets users iterate without losing work.
+
+---
+
+## Session 2 additions
+
+### Workflow / port fixes
+- API Server: `PORT=8080 pnpm dev` — artifact.toml service env now sets PORT=8080 too
+- Mobile: `PORT=8081 pnpm dev` — artifact.toml localPort fixed from 18115 → 8081
+- pg package added to api-server: `pnpm add pg @types/pg`
+
+### Database persistence wired end-to-end
+- `artifacts/api-server/src/lib/db.ts` — Pool-based pg persistence; graceful no-op when DATABASE_URL absent
+- `artifacts/api-server/src/routes/pipeline.ts` — imports saveConversation, saveMessage, saveDecisionMemory; passes conversationId through
+- Mobile `[id].tsx` sends `conversationId: id` in all 3 fetch calls (sendMessage, sendMessageWithOptions, sendMessageWithSignature)
+
+### Domain Picker skip Intent Agent (§4.4.3)
+- When `domain` option is present and not "general", Intent Agent step is skipped
+- Domain heuristically maps to intent type; thinkingLevel defaults to "high"
+- Implementation: thinkerCore.ts `domainPreSelected` branch before Intent Agent
+
+### RTL Language Support (§17.5)
+- `artifacts/mobile/hooks/useRTL.ts` — RTL detection for ar, he, ur, fa, yi, dv, ha, ks, ps, sd, ug
+- `Message` interface (AppContext.tsx) has `language?: string` field
+- MessageBubble applies `flexDirection: row-reverse` and `textAlign: right` for RTL messages
+- Assistant messages tagged with `detectedLanguage` on every content event in processSSEStream
