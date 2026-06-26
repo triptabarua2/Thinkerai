@@ -30,7 +30,7 @@ import { TypingIndicator } from "@/components/TypingIndicator";
 import { VersionHistoryCard, type VersionItem } from "@/components/VersionHistoryCard";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
-import { AGENTS, detectAgentType, type AgentType } from "@/lib/agents";
+import { AGENTS, agentTypeToDomain, detectAgentType, type AgentType } from "@/lib/agents";
 import { getBaseUrl } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
 import { useRTL } from "@/hooks/useRTL";
@@ -86,6 +86,7 @@ export default function ChatScreen() {
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
   const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("medium");
+  const PLAN_TIER = "pro" as const; // TODO: fetch from user profile/auth
   const [selectedDomain, setSelectedDomain] = useState<string>("general");
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [decisionEvent, setDecisionEvent] = useState<DecisionEvent | null>(null);
@@ -315,12 +316,13 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({
           messages: chatHistory,
+          planTier: PLAN_TIER,
           thinkingLevel,
-          domain: selectedDomain,
-          detectedLanguage,
-          decisionMemory,
-          versionHistory,
-          currentVersion,
+          domain: selectedDomain !== "general" ? selectedDomain : undefined,
+          detectedLanguage: detectedLanguage !== "en" ? detectedLanguage : undefined,
+          decisionMemory: decisionMemory.length > 0 ? decisionMemory : undefined,
+          versionHistory: versionHistory.length > 0 ? versionHistory : undefined,
+          currentVersion: currentVersion > 0 ? currentVersion : undefined,
           ...extraOptions,
         }),
       });
@@ -363,14 +365,15 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({
           messages: chatHistory,
+          planTier: PLAN_TIER,
           thinkingLevel,
-          domain: selectedDomain,
+          domain: selectedDomain !== "general" ? selectedDomain : undefined,
           signatureAnswer: signatureAnswer ?? undefined,
           signatureAnswered,
-          detectedLanguage,
-          decisionMemory,
-          versionHistory,
-          currentVersion,
+          detectedLanguage: detectedLanguage !== "en" ? detectedLanguage : undefined,
+          decisionMemory: decisionMemory.length > 0 ? decisionMemory : undefined,
+          versionHistory: versionHistory.length > 0 ? versionHistory : undefined,
+          currentVersion: currentVersion > 0 ? currentVersion : undefined,
         }),
       });
       if (!response.ok) throw new Error(`Error: ${response.status}`);
@@ -421,6 +424,7 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({
           messages: chatHistory,
+          planTier: PLAN_TIER,
           thinkingLevel,
           domain: selectedDomain !== "general" ? selectedDomain : undefined,
           detectedLanguage: detectedLanguage !== "en" ? detectedLanguage : undefined,
@@ -746,7 +750,7 @@ export default function ChatScreen() {
         isStreaming={isStreaming}
         onAgentChange={(a) => {
           setAgentType(a);
-          setSelectedDomain(a === "ceo" ? "general" : a);
+          setSelectedDomain(agentTypeToDomain(a));
         }}
       />
 

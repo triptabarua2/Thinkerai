@@ -206,8 +206,9 @@ export async function runThinkerCore(
     // §4.4.2 Case 1: user picked domain → skip Intent, derive intent from domain
     const domainToIntent: Record<string, import("../types/pipeline.js").IntentType> = {
       coding: "app", devops: "app", security: "app", qa: "app",
-      design: "app", music: "task", video: "task", writing: "task",
-      research: "task", automation: "task",
+      design: "app", canvas: "app",
+      music: "task", video: "task", writing: "task",
+      research: "task", automation: "task", general: "task",
     };
     const derivedIntent = domainToIntent[options.domain!] ?? "task";
     emit({ type: "agent_start", agent: "intent", label: "Domain pre-selected — skipping classification..." });

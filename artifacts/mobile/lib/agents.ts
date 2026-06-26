@@ -185,6 +185,35 @@ export const AGENTS: Record<AgentType, AgentDef> = {
 
 export const AGENT_LIST: AgentDef[] = Object.values(AGENTS);
 
+export const DOMAIN_LIST = [
+  "general", "coding", "design", "devops", "security",
+  "research", "writing", "music", "video", "automation",
+] as const;
+export type Domain = (typeof DOMAIN_LIST)[number];
+
+export function agentTypeToDomain(agentType: AgentType): Domain {
+  const map: Record<AgentType, Domain> = {
+    ceo: "general",
+    planner: "general",
+    research: "research",
+    coding: "coding",
+    browser: "coding",
+    file: "general",
+    git: "coding",
+    devops: "devops",
+    memory: "general",
+    security: "security",
+    qa: "coding",
+    video: "video",
+    image: "design",
+    music: "music",
+    canvas: "design",
+    automation: "automation",
+    report: "writing",
+  };
+  return map[agentType] ?? "general";
+}
+
 export function detectAgentType(message: string): AgentType {
   const lower = message.toLowerCase();
   if (/\b(secure|security|vulnerability|auth|encrypt|hack|pentest|owasp)\b/.test(lower))
