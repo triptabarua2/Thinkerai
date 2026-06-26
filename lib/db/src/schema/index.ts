@@ -119,6 +119,9 @@ export const userCreditsTable = pgTable("user_credits", {
   extraCreditsBalance: integer("extra_credits_balance").notNull().default(0),
   graceUntil: timestamp("grace_until", { withTimezone: true }),
   lastRefillAt: timestamp("last_refill_at", { withTimezone: true }).notNull().defaultNow(),
+  // Stripe billing integration (§18.4)
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
