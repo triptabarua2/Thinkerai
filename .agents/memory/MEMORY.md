@@ -1,2 +1,4 @@
 - [Agent system architecture](agent-system.md) — 12 pipeline agents + 17 chat agents; Dynamic Routing Engine in thinkerCore.ts; Strategy+Design agents added; SignatureQuestion, ThinkCredits, extended PipelineState
 - [V1 feature implementation](v1-features.md) — BlueprintApprovalCard, VersionHistoryCard, DecisionMemoryBanner, language detection, domain picker; all SSE events wired end-to-end
+- [Multi-model pool architecture](multi-model-pool.md) — PDF §6.1/19/20.3 in llm.ts; 4 providers (Anthropic/OpenAI/DeepSeek/Gemini); 5s timeout failover; pool health; keys as Secrets
+- [DB schema complete](db-schema.md) — PDF §7.1 fields added to pipeline_states; new tables: user_credits, credit_transactions, billing_events; push via pnpm --filter @workspace/db push
