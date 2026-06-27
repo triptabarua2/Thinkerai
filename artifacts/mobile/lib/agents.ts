@@ -188,8 +188,28 @@ export const AGENT_LIST: AgentDef[] = Object.values(AGENTS);
 export const DOMAIN_LIST = [
   "general", "coding", "design", "devops", "security",
   "research", "writing", "music", "video", "automation",
+  "marketing", "finance", "legal", "education", "healthcare", "analytics",
 ] as const;
 export type Domain = (typeof DOMAIN_LIST)[number];
+
+export const DOMAIN_META: Record<Domain, { icon: string; label: string; color: string }> = {
+  general:    { icon: "activity",    label: "CEO Agent",        color: "#FFB800" },
+  coding:     { icon: "code",        label: "Coding",           color: "#7B61FF" },
+  devops:     { icon: "server",      label: "DevOps",           color: "#6C8EFF" },
+  security:   { icon: "shield",      label: "Security",         color: "#FF3B30" },
+  music:      { icon: "music",       label: "Music",            color: "#5E5CE6" },
+  design:     { icon: "pen-tool",    label: "Design",           color: "#30D158" },
+  analytics:  { icon: "bar-chart-2", label: "Data / Analytics", color: "#00D4FF" },
+  marketing:  { icon: "trending-up", label: "Marketing",        color: "#FF6B6B" },
+  finance:    { icon: "dollar-sign", label: "Finance",          color: "#34C759" },
+  legal:      { icon: "file-text",   label: "Legal",            color: "#A0A0B0" },
+  research:   { icon: "search",      label: "Research",         color: "#00D4AA" },
+  education:  { icon: "book-open",   label: "Education",        color: "#FF9500" },
+  healthcare: { icon: "heart",       label: "Healthcare",       color: "#FF2D87" },
+  writing:    { icon: "edit-2",      label: "Writing",          color: "#BF5AF2" },
+  video:      { icon: "video",       label: "Video",            color: "#FF6D00" },
+  automation: { icon: "zap",         label: "Automation",       color: "#FFD60A" },
+};
 
 export function agentTypeToDomain(agentType: AgentType): Domain {
   const map: Record<AgentType, Domain> = {

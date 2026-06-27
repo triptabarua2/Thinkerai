@@ -20,7 +20,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import type { Conversation } from "@/context/AppContext";
-import { AGENTS } from "@/lib/agents";
+import { AGENTS, DOMAIN_META, type Domain } from "@/lib/agents";
+import { ThinkerLogo } from "@/components/ThinkerLogo";
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
@@ -58,6 +59,7 @@ export function Sidebar({ visible, onClose }: Props) {
   const { conversations, createConversation, setSidebarOpen, deleteConversation, pinConversation } = useApp();
 
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [activeDomain, setActiveDomain] = useState<Domain>("general");
   const menuAnim = useRef(new Animated.Value(0)).current;
 
   const translateY = useRef(new Animated.Value(-screenHeight)).current;
@@ -299,13 +301,44 @@ export function Sidebar({ visible, onClose }: Props) {
         {/* Header row */}
         <View style={styles.panelHeader}>
           <View style={styles.logoRow}>
-            <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
+            <ThinkerLogo size={28} />
             <Text style={[styles.logoText, { color: colors.text }]}>Thinker AI</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
             <Feather name="x" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        {/* Domain picker */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.domainScroll}
+          contentContainerStyle={styles.domainScrollContent}
+        >
+          {(Object.entries(DOMAIN_META) as [Domain, typeof DOMAIN_META[Domain]][]).map(([key, meta]) => {
+            const isActive = activeDomain === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.domainChip,
+                  {
+                    backgroundColor: isActive ? meta.color + "22" : colors.card,
+                    borderColor: isActive ? meta.color + "66" : colors.border,
+                  },
+                ]}
+                onPress={() => setActiveDomain(key)}
+                activeOpacity={0.7}
+              >
+                <Feather name={meta.icon as any} size={12} color={isActive ? meta.color : colors.textSecondary} />
+                <Text style={[styles.domainChipLabel, { color: isActive ? meta.color : colors.textSecondary }]}>
+                  {meta.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* New Chat */}
         <TouchableOpacity
@@ -511,6 +544,30 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 4,
+  },
+  domainScroll: {
+    maxHeight: 44,
+    marginBottom: 8,
+  },
+  domainScrollContent: {
+    paddingHorizontal: 12,
+    gap: 6,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  domainChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  domainChipLabel: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    letterSpacing: 0.1,
   },
   newChatBtn: {
     flexDirection: "row",
