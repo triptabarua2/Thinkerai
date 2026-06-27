@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
@@ -23,15 +24,16 @@ interface Props {
 }
 
 const MENU_ITEMS = [
-  { icon: "user", label: "Profile" },
-  { icon: "credit-card", label: "Subscription" },
-  { icon: "key", label: "API Settings" },
-  { icon: "cpu", label: "Memory Stats" },
-  { icon: "link", label: "Connected Accounts" },
-  { icon: "bell", label: "Notifications" },
-  { icon: "moon", label: "Theme Settings" },
-  { icon: "shield", label: "Security" },
-];
+  { icon: "user", label: "Profile", route: "/profile" },
+  { icon: "credit-card", label: "Subscription", route: "/settings" },
+  { icon: "key", label: "API Settings", route: "/settings" },
+  { icon: "cpu", label: "Memory Stats", route: "/settings" },
+  { icon: "link", label: "Connected Accounts", route: "/profile" },
+  { icon: "bell", label: "Notifications", route: "/settings" },
+  { icon: "moon", label: "Theme Settings", route: "/settings" },
+  { icon: "shield", label: "Security", route: "/settings" },
+  { icon: "settings", label: "Settings", route: "/settings" },
+] as const;
 
 export function ProfileSheet({ visible, onClose }: Props) {
   const colors = useColors();
@@ -191,7 +193,7 @@ export function ProfileSheet({ visible, onClose }: Props) {
               key={item.label}
               style={[styles.menuItem, { borderBottomColor: colors.border }]}
               activeOpacity={0.6}
-              onPress={onClose}
+              onPress={() => { onClose(); router.push(item.route as any); }}
             >
               <View style={[styles.menuIcon, { backgroundColor: colors.surface }]}>
                 <Feather name={item.icon as any} size={15} color={colors.textSecondary} />
