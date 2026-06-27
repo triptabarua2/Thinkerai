@@ -215,7 +215,7 @@ function HomeChatBar({
 
       <View style={[barStyles.inputWrap, { backgroundColor: colors.card }]}>
         <TextInput
-          style={[barStyles.input, { color: colors.text }]}
+          style={[barStyles.input, { color: colors.text, outlineStyle: "none" } as any]}
           value={text}
           onChangeText={setText}
           placeholder="Ask Thinker AI anything..."

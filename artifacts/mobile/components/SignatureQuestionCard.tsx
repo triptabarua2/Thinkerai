@@ -57,7 +57,8 @@ export function SignatureQuestionCard({ question, onAnswer, onSkip, colors }: Pr
             backgroundColor: colors.surface,
             borderColor: colors.border,
             color: colors.text,
-          },
+            outlineStyle: "none",
+          } as any,
         ]}
         placeholder="Type your answer here..."
         placeholderTextColor={colors.textSecondary}

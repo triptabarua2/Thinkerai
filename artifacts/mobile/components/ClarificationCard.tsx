@@ -173,9 +173,10 @@ export function ClarificationCard({ data, originalMessage, onProceed, onSkip }: 
                   styles.textInput,
                   {
                     backgroundColor: colors.surface,
-                    borderColor: answers[q.id] ? "#7B61FF" : colors.border,
+                    borderColor: answers[q.id] ? colors.primary : colors.border,
                     color: colors.text,
-                  },
+                    outlineStyle: "none",
+                  } as any,
                 ]}
                 placeholder="Type your answer…"
                 placeholderTextColor={colors.textSecondary}
