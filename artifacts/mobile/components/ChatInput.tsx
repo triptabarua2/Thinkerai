@@ -134,7 +134,7 @@ export function ChatInput({
         {/* Text input */}
         <TextInput
           ref={inputRef}
-          style={[styles.input, { color: colors.text }]}
+          style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
           value={text}
           onChangeText={setText}
           placeholder={placeholder}

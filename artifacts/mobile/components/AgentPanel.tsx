@@ -117,8 +117,8 @@ export function AgentPanel({ agentType, isStreaming, onAgentChange }: Props) {
                   style={[
                     styles.agentCard,
                     {
-                      backgroundColor: isActive ? item.color + "20" : colors.card,
-                      borderColor: isActive ? item.color + "80" : colors.border,
+                      backgroundColor: isActive ? colors.primary + "20" : colors.card,
+                      borderColor: isActive ? colors.primary + "80" : colors.border,
                       flex: 1,
                     },
                   ]}
@@ -126,12 +126,12 @@ export function AgentPanel({ agentType, isStreaming, onAgentChange }: Props) {
                   activeOpacity={0.75}
                 >
                   {isActive && (
-                    <View style={[styles.activeCheck, { backgroundColor: item.color }]}>
+                    <View style={[styles.activeCheck, { backgroundColor: colors.primary }]}>
                       <Feather name="check" size={9} color="#fff" />
                     </View>
                   )}
-                  <View style={[styles.cardIcon, { backgroundColor: item.color + "22" }]}>
-                    <Feather name={item.icon as any} size={18} color={item.color} />
+                  <View style={[styles.cardIcon, { backgroundColor: isActive ? colors.primary + "22" : item.color + "22" }]}>
+                    <Feather name={item.icon as any} size={18} color={isActive ? colors.primary : item.color} />
                   </View>
                   <Text style={[styles.cardName, { color: colors.text }]}>{item.name}</Text>
                   <Text style={[styles.cardCap, { color: colors.textTertiary }]} numberOfLines={2}>
