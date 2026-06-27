@@ -2,8 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   ScrollView,
   StyleSheet,
@@ -165,7 +167,6 @@ export default function HomeScreen() {
         colors={colors}
         insets={insets}
         onSend={handleStartChat}
-        onProfile={() => setProfileSheetOpen(true)}
       />
 
       {/* Overlays — rendered last so they sit above all content */}
@@ -179,41 +180,74 @@ function HomeChatBar({
   colors,
   insets,
   onSend,
-  onProfile,
 }: {
   colors: ReturnType<typeof useColors>;
   insets: ReturnType<typeof useSafeAreaInsets>;
   onSend: (text: string) => void;
-  onProfile: () => void;
 }) {
   const [text, setText] = useState("");
+  const [focused, setFocused] = useState(false);
+  const expandAnim = useRef(new Animated.Value(0)).current;
   const canSend = text.trim().length > 0;
+
+  function animateTo(val: number) {
+    Animated.timing(expandAnim, {
+      toValue: val,
+      duration: 220,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }
+
+  function handleFocus() {
+    setFocused(true);
+    animateTo(1);
+  }
+
+  function handleBlur() {
+    if (!text.trim()) {
+      setFocused(false);
+      animateTo(0);
+    }
+  }
 
   function handleSend() {
     if (!canSend) return;
     const msg = text.trim();
     setText("");
+    setFocused(false);
+    animateTo(0);
     onSend(msg);
   }
 
   const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
-  return (
-    <View
-      style={[
-        barStyles.wrap,
-        { paddingBottom: bottomPad + 12 },
-      ]}
-    >
-      <TouchableOpacity
-        style={[barStyles.profileBtn, { backgroundColor: colors.card }]}
-        onPress={onProfile}
-        activeOpacity={0.75}
-      >
-        <Feather name="user" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
+  const inputMaxHeight = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [48, 130],
+  });
 
-      <View style={[barStyles.inputWrap, { backgroundColor: colors.card }]}>
+  const borderRadius = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [999, 20],
+  });
+
+  const borderColor = focused ? colors.primary + "80" : colors.border;
+
+  return (
+    <View style={[barStyles.wrap, { paddingBottom: bottomPad + 12 }]}>
+      <Animated.View
+        style={[
+          barStyles.inputWrap,
+          {
+            backgroundColor: colors.card,
+            borderColor,
+            borderWidth: 1.5,
+            borderRadius,
+            maxHeight: inputMaxHeight,
+          },
+        ]}
+      >
         <TextInput
           style={[barStyles.input, { color: colors.text, outlineStyle: "none" } as any]}
           value={text}
@@ -222,6 +256,8 @@ function HomeChatBar({
           placeholderTextColor={colors.textTertiary}
           multiline
           maxLength={2000}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onSubmitEditing={handleSend}
           blurOnSubmit={false}
           returnKeyType="send"
@@ -235,7 +271,7 @@ function HomeChatBar({
             <Feather name="arrow-up" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -246,52 +282,34 @@ const barStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: "transparent",
+  },
+  inputWrap: {
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
-    paddingTop: 10,
-    gap: 10,
-    backgroundColor: "transparent",
-  },
-  profileBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  inputWrap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
+    overflow: "hidden",
   },
   input: {
     flex: 1,
     fontSize: 15,
     lineHeight: 22,
-    maxHeight: 100,
-    paddingTop: 3,
-    paddingBottom: 3,
+    paddingTop: 2,
+    paddingBottom: 2,
   },
   sendBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 1,
