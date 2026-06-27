@@ -5,6 +5,7 @@ import {
   Animated,
   Pressable,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -12,26 +13,60 @@ import {
 
 import { useColors } from "@/hooks/useColors";
 
+const CREDIT_COSTS: Record<string, number> = {
+  low: 1,
+  medium: 9,
+  high: 66,
+  consensus: 75,
+};
+
+const LEVEL_LABELS: Record<string, string> = {
+  low: "■ Low",
+  medium: "■■ Mid",
+  high: "■■■ High",
+  consensus: "■■■■ Consensus",
+};
+
+type ThinkingLevel = "low" | "medium" | "high" | "consensus";
+const LEVEL_ORDER: ThinkingLevel[] = ["low", "medium", "high", "consensus"];
+
 interface Props {
-  onSend: (text: string) => void;
+  onSend: (text: string, level: ThinkingLevel) => void;
+  onAttach?: () => void;
   disabled?: boolean;
   placeholder?: string;
+  creditBalance?: number;
 }
 
-export function ChatInput({ onSend, disabled = false, placeholder = "Message Thinker AI..." }: Props) {
+export function ChatInput({
+  onSend,
+  onAttach,
+  disabled = false,
+  placeholder = "Message Thinker AI...",
+  creditBalance = 50,
+}: Props) {
   const colors = useColors();
   const [text, setText] = useState("");
+  const [level, setLevel] = useState<ThinkingLevel>("medium");
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const canSend = text.trim().length > 0 && !disabled;
+  const estimatedCredits = CREDIT_COSTS[level];
+  const canAfford = creditBalance >= estimatedCredits;
+
+  function cycleLevel() {
+    Haptics.selectionAsync();
+    const idx = LEVEL_ORDER.indexOf(level);
+    setLevel(LEVEL_ORDER[(idx + 1) % LEVEL_ORDER.length]);
+  }
 
   function handleSend() {
     if (!canSend) return;
     const content = text.trim();
     setText("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onSend(content);
+    onSend(content, level);
     inputRef.current?.focus();
 
     Animated.sequence([
@@ -41,58 +76,145 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Thi
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-        },
-      ]}
-    >
-      <TouchableOpacity style={styles.attachBtn} activeOpacity={0.6}>
-        <Feather name="paperclip" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
+    <View style={styles.wrapper}>
+      {/* Credit cost chip — shown above input when text is being typed */}
+      {text.trim().length > 0 && (
+        <View style={[styles.chipRow]}>
+          <View
+            style={[
+              styles.creditChip,
+              {
+                backgroundColor: canAfford ? colors.primary + "15" : colors.destructive + "15",
+                borderColor: canAfford ? colors.primary + "40" : colors.destructive + "40",
+              },
+            ]}
+          >
+            <Feather
+              name="zap"
+              size={10}
+              color={canAfford ? colors.primary : colors.destructive}
+            />
+            <Text
+              style={[
+                styles.chipText,
+                { color: canAfford ? colors.primary : colors.destructive },
+              ]}
+            >
+              ~{estimatedCredits} credits
+            </Text>
+          </View>
+          <View style={[styles.balanceChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
+              Balance: {creditBalance}
+            </Text>
+          </View>
+        </View>
+      )}
 
-      <TextInput
-        ref={inputRef}
+      {/* Main input row */}
+      <View
         style={[
-          styles.input,
-          { color: colors.text },
+          styles.container,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
         ]}
-        value={text}
-        onChangeText={setText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textTertiary}
-        multiline
-        maxLength={4000}
-        blurOnSubmit={false}
-        onSubmitEditing={handleSend}
-      />
-
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <Pressable
-          style={[
-            styles.sendBtn,
-            {
-              backgroundColor: canSend ? colors.primary : colors.border,
-            },
-          ]}
-          onPress={handleSend}
-          disabled={!canSend}
+      >
+        {/* File attach */}
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onAttach}
+          activeOpacity={0.6}
+          hitSlop={8}
         >
-          <Feather
-            name="arrow-up"
-            size={18}
-            color={canSend ? "#FFFFFF" : colors.textTertiary}
-          />
-        </Pressable>
-      </Animated.View>
+          <Feather name="paperclip" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {/* Text input */}
+        <TextInput
+          ref={inputRef}
+          style={[styles.input, { color: colors.text }]}
+          value={text}
+          onChangeText={setText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textTertiary}
+          multiline
+          maxLength={4000}
+          blurOnSubmit={false}
+          onSubmitEditing={handleSend}
+        />
+
+        {/* Thinking Level chip */}
+        <TouchableOpacity
+          style={[
+            styles.levelChip,
+            { backgroundColor: colors.primary + "18", borderColor: colors.primary + "35" },
+          ]}
+          onPress={cycleLevel}
+          activeOpacity={0.7}
+          hitSlop={4}
+        >
+          <Text style={[styles.levelText, { color: colors.primary }]}>
+            {LEVEL_LABELS[level]}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Send button */}
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <Pressable
+            style={[
+              styles.sendBtn,
+              { backgroundColor: canSend ? colors.primary : colors.border },
+            ]}
+            onPress={handleSend}
+            disabled={!canSend}
+          >
+            <Feather
+              name="arrow-up"
+              size={18}
+              color={canSend ? "#F9FAFB" : colors.textTertiary}
+            />
+          </Pressable>
+        </Animated.View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    gap: 6,
+  },
+  chipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+  },
+  creditChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  balanceChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  balanceText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
   container: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -103,7 +225,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 4,
   },
-  attachBtn: {
+  iconBtn: {
     width: 36,
     height: 36,
     alignItems: "center",
@@ -117,6 +239,18 @@ const styles = StyleSheet.create({
     paddingTop: 7,
     paddingBottom: 7,
     paddingHorizontal: 4,
+  },
+  levelChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  levelText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   sendBtn: {
     width: 36,
