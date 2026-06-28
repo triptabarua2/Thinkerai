@@ -16,6 +16,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AgentPanel } from "@/components/AgentPanel";
+import { ApprovalCard } from "@/components/ApprovalCard";
 import { BlueprintApprovalCard, type BlueprintStep } from "@/components/BlueprintApprovalCard";
 import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
@@ -49,6 +50,7 @@ type ClarifyState =
   | { status: "needed"; data: ClarifyData; pendingMessage: string }
   | { status: "signature"; question: string; pendingMessage: string }
   | { status: "blueprint"; steps: BlueprintStep[]; techStack: string; complexity: string; pendingMessage: string }
+  | { status: "approval"; content: string; artifactType: string; version: number; agentCount: number; pendingMessage: string }
   | { status: "skipped" };
 
 interface DecisionEvent {
@@ -368,6 +370,28 @@ export default function ChatScreen() {
   function handleBlueprintStartOver() {
     if (clarifyState.status !== "blueprint") return;
     setClarifyState({ status: "idle" });
+  }
+
+  async function handleOutputApprove() {
+    if (clarifyState.status !== "approval") return;
+    const { pendingMessage } = clarifyState;
+    setClarifyState({ status: "skipped" });
+    await sendMessageWithOptions(pendingMessage, { outputApproved: true });
+  }
+
+  function handleOutputChangeSomething() {
+    if (clarifyState.status !== "approval") return;
+    const pending = clarifyState.pendingMessage;
+    setClarifyState({ status: "idle" });
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: genId(),
+        role: "assistant",
+        content: "Sure — what would you like changed? Describe the revision and I'll rebuild.",
+        timestamp: Date.now(),
+      },
+    ]);
   }
 
   async function handleRollback(versionNum: number) {
@@ -720,6 +744,43 @@ export default function ChatScreen() {
               break;
             }
 
+            case "approval_needed": {
+              setClarifyState({
+                status: "approval",
+                content: event.content as string,
+                artifactType: event.artifactType as string,
+                version: event.version as number,
+                agentCount: event.agentCount as number,
+                pendingMessage: originalText,
+              });
+              setPipelineActive(false);
+              break;
+            }
+
+            case "final_output": {
+              const finalSummary = event.summary as string;
+              const finalType = event.artifactType as string;
+              const finalCredits = event.creditsUsed as number;
+              const finalAgents = event.agentCount as number;
+              const finalVersion = event.version as number;
+              const chunk =
+                `\n\n---\n✅ **Build Complete** — Version ${finalVersion}\n\n` +
+                `${finalSummary}\n\n` +
+                `*${finalAgents} agents · ${finalCredits} credits · Type: ${finalType}*\n`;
+              fullContent += chunk;
+              if (!assistantAdded) {
+                setShowTyping(false);
+                setMessages((prev) => [
+                  ...prev,
+                  { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                ]);
+                assistantAdded = true;
+              } else {
+                setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+              }
+              break;
+            }
+
             case "pipeline_halt": {
               const haltReason = event.reason as string;
               if (!assistantAdded) {
@@ -819,7 +880,8 @@ export default function ChatScreen() {
     clarifyState.status === "checking" ||
     clarifyState.status === "needed" ||
     clarifyState.status === "signature" ||
-    clarifyState.status === "blueprint";
+    clarifyState.status === "blueprint" ||
+    clarifyState.status === "approval";
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -936,6 +998,16 @@ export default function ChatScreen() {
                   onModify={handleBlueprintModify}
                   onStartOver={handleBlueprintStartOver}
                   colors={colors}
+                />
+              )}
+              {clarifyState.status === "approval" && (
+                <ApprovalCard
+                  projectName={clarifyState.artifactType ?? "Output"}
+                  previewDescription={clarifyState.content ?? "Review the output before finalising."}
+                  creditsUsed={0}
+                  agentCount={clarifyState.agentCount}
+                  onApprove={handleOutputApprove}
+                  onChangeSomething={handleOutputChangeSomething}
                 />
               )}
             </>

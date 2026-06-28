@@ -195,18 +195,56 @@ async function dispatchCall(m: ModelDescriptor, system: string, user: string): P
   }
 }
 
+// ── Peer Recovery Protocol (§8.4) ────────────────────────────────────────────
+/**
+ * Builds a peer-audit system prompt: the replacement model reviews what the
+ * failed model produced (partial output) and continues from where it left off.
+ * PDF §8.4 Steps 2-4: context handoff → peer audit → targeted continuation.
+ */
+function buildPeerAuditSystem(originalSystem: string, partialOutput: string): string {
+  return `${originalSystem}
+
+---
+PEER RECOVERY PROTOCOL ACTIVE (§8.4)
+A previous processing step started this task but did not complete it.
+Partial output from the previous step is provided below.
+
+Your task:
+1. Review the partial output carefully.
+2. Identify what is correct, what is incorrect, and what is missing.
+3. Keep correct content exactly as-is.
+4. Fix any incorrect content.
+5. Complete whatever is missing.
+6. Never regenerate correct work — only fix and complete.
+
+PARTIAL OUTPUT FROM PREVIOUS STEP:
+${partialOutput.slice(0, 4000)}
+---`;
+}
+
+export interface FailoverLogEntry {
+  agent: string;
+  failedModel: string;
+  replacementModel: string;
+  timestamp: number;
+  peerAuditUsed: boolean;
+}
+
 // ── Model Pool Manager (§20.3) ───────────────────────────────────────────────
 /**
  * Calls the best available model for a tier with automatic failover.
  * On timeout (5s) or error, tries the next model in the pool.
+ * Implements Peer Recovery Protocol (§8.4): replacement model audits partial output.
  * Records pool health after every call.
  */
 export async function llmCall(
   system: string,
   user: string,
-  tier: ModelTier = "mid"
+  tier: ModelTier = "mid",
+  options?: { partialOutput?: string; onFailover?: (entry: FailoverLogEntry) => void }
 ): Promise<string> {
   const excludeModels = new Set<string>();
+  let partialOutput = options?.partialOutput ?? "";
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const pool = buildPool(tier, excludeModels);
@@ -214,15 +252,30 @@ export async function llmCall(
 
     const model = pool[0];
     const modelKey = `${model.provider}:${model.id}`;
+    const activeSystem = attempt > 0 && partialOutput
+      ? buildPeerAuditSystem(system, partialOutput)
+      : system;
 
     try {
-      const result = await withTimeout(dispatchCall(model, system, user), TIMEOUT_MS);
+      const result = await withTimeout(dispatchCall(model, activeSystem, user), TIMEOUT_MS);
       recordCall(modelKey, false);
       return result;
     } catch (err) {
       recordCall(modelKey, true);
+      const failedModel = modelKey;
       excludeModels.add(modelKey);
-      // peer_audit_flag would be set here in full pipeline context
+
+      // Log failover for observability (§9.2 failover_cost, §10.6)
+      const nextPool = buildPool(tier, excludeModels);
+      if (nextPool.length > 0 && options?.onFailover) {
+        options.onFailover({
+          agent: "unknown",
+          failedModel,
+          replacementModel: `${nextPool[0].provider}:${nextPool[0].id}`,
+          timestamp: Date.now(),
+          peerAuditUsed: !!partialOutput,
+        });
+      }
     }
   }
 

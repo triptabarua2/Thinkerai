@@ -120,6 +120,7 @@ export async function runThinkerCore(
     existingRequirements?: Record<string, string>;
     domain?: string;
     blueprintApproved?: boolean;
+    outputApproved?: boolean;
     existingPlan?: unknown[];
     fixType?: "small" | "medium" | "full_rebuild";
     medium_fix_count?: number;
@@ -185,6 +186,27 @@ export async function runThinkerCore(
     thinkCreditsUsed: 0,
     agentLogs: [],
   };
+
+  // ── Stage 4/5: Output Approval fast-path (Section 16) ────────────────────
+  // When user approves the built output (Stage 4), skip all agents and go
+  // straight to emitting Stage 5 final_output from the last saved version.
+  if (options?.outputApproved) {
+    const lastVersion = (options?.versionHistory ?? []).at(-1);
+    if (lastVersion) {
+      const agentCount = 7; // intent + clarify + planner + builder + reviewer + critic + judge
+      emit({
+        type: "final_output",
+        summary: `Build complete. Reviewed by ${agentCount} agents and approved. Version ${lastVersion.version_number} is your final output.`,
+        artifactType: lastVersion.artifactType,
+        creditsUsed: options?.currentVersion ?? 1,
+        agentCount,
+        version: lastVersion.version_number,
+      });
+      emit({ type: "content", text: lastVersion.content });
+      emit({ type: "done", status: "complete" });
+      return;
+    }
+  }
 
   // ── Check for Decision Memory ────────────────────────────────────────────
   const newDecision = detectDecisionMemory(message);
@@ -814,8 +836,44 @@ export async function runThinkerCore(
     break plannerLoop;
   } // end plannerLoop
 
-  // ── 12. Done ──────────────────────────────────────────────────────────────
+  // ── 12. Stage 4 — Output Approval Gate (Section 16) ─────────────────────
+  // For High/Consensus thinking, show the built output and wait for approval
+  // before emitting Stage 5 final output. Skip for Low/Medium (no approval gate).
+  const needsOutputApproval =
+    (state.thinkingLevel === "high" || state.thinkingLevel === "consensus") &&
+    state.builderOutput &&
+    !options?.outputApproved;
+
+  if (needsOutputApproval && state.builderOutput) {
+    const agentsRan = state.agentLogs.length;
+    emit({
+      type: "approval_needed",
+      content: state.builderOutput.content,
+      artifactType: state.builderOutput.artifactType,
+      version: state.current_version,
+      agentCount: agentsRan,
+    });
+    emit({ type: "done", status: "complete" });
+    return;
+  }
+
+  // ── 13. Stage 5 — Final Output (Section 16) ───────────────────────────────
   state.status = "complete";
+  const totalAgents = state.agentLogs.length;
+  const durationSecs = Math.round((Date.now() - startTime) / 1000);
+
+  if (state.builderOutput) {
+    const agentNames = [...new Set(state.agentLogs.map((l) => l.agent_name))];
+    emit({
+      type: "final_output",
+      summary: `Build complete in ${durationSecs}s. Reviewed by ${agentNames.length} agents (${agentNames.join(", ")}). Version ${state.current_version}.`,
+      artifactType: state.builderOutput.artifactType,
+      creditsUsed: state.thinkCreditsUsed || 1,
+      agentCount: totalAgents,
+      version: state.current_version,
+    });
+  }
+
   emit({ type: "done", status: "complete" });
 }
 

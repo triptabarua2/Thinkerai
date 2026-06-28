@@ -16,6 +16,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     existingRequirements,
     domain,
     blueprintApproved,
+    outputApproved,
     existingPlan,
     fixType,
     medium_fix_count,
@@ -34,6 +35,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     existingRequirements?: Record<string, string>;
     domain?: string;
     blueprintApproved?: boolean;
+    outputApproved?: boolean;
     existingPlan?: unknown[];
     fixType?: "small" | "medium" | "full_rebuild";
     medium_fix_count?: number;
@@ -79,6 +81,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       existingRequirements: existingRequirements ?? {},
       domain,
       blueprintApproved: blueprintApproved ?? false,
+      outputApproved: outputApproved ?? false,
       existingPlan,
       fixType,
       medium_fix_count,

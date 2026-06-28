@@ -234,4 +234,6 @@ export type PipelineEvent =
   | { type: "pipeline_halt"; reason: string; completedSteps: number; totalSteps: number }
   | { type: "failover"; agent: string; message: string }
   | { type: "credit_confirm"; action: string; credits: number; balance: number }
+  | { type: "approval_needed"; content: string; artifactType: string; version: number; agentCount: number }
+  | { type: "final_output"; summary: string; artifactType: string; creditsUsed: number; agentCount: number; version: number }
   | { type: "done"; status: "complete" | "failed" | "halted"; error?: string };

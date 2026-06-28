@@ -62,6 +62,12 @@ export class WebhookHandlers {
       );
     }
 
+    // §18.3 — Failed payment: 7-day grace period before tier reverts to Free
+    if (type === "invoice.payment_failed") {
+      const invoice = event.data.object;
+      await WebhookHandlers.applyGracePeriod(invoice.customer);
+    }
+
     if (type === "invoice.payment_succeeded") {
       const invoice = event.data.object;
       if (invoice.billing_reason === "subscription_cycle") {
@@ -146,5 +152,18 @@ export class WebhookHandlers {
       stripeEventId: stripeCustomerId,
       processedAt: new Date(),
     });
+  }
+
+  // §18.3 — Apply 7-day grace period on payment failure
+  private static async applyGracePeriod(stripeCustomerId: string): Promise<void> {
+    const db = getDb();
+    if (!db) return;
+
+    const graceUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await db
+      .update(userCreditsTable)
+      .set({ graceUntil, updatedAt: new Date() })
+      .where(eq(userCreditsTable.stripeCustomerId, stripeCustomerId));
   }
 }
