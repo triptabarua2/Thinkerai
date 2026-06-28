@@ -81,7 +81,6 @@ export default function HomeScreen() {
   }
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
   // 2 columns on narrow (<420), 3 on wider
   const cols = W < 420 ? 2 : 3;
@@ -89,16 +88,18 @@ export default function HomeScreen() {
   const hPad = 16;
   const cardW = (W - hPad * 2 - gap * (cols - 1)) / cols;
 
-  const HEADER_H = topPad + 68; // paddingTop + 12 + 44btn + 12
+  // Header sits right at safe-area top — no extra web offset
+  const HEADER_TOP = insets.top + 12;
+  const HEADER_H = HEADER_TOP + 44 + 12; // paddingTop + btn + paddingBottom
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Fixed Header — always at the top, never scrolls away */}
+      {/* Fixed Header — pinned to the very top */}
       <View
         style={[
           styles.fixedHeader,
           {
-            paddingTop: topPad + 12,
+            paddingTop: HEADER_TOP,
             backgroundColor: colors.background,
             borderBottomColor: colors.border,
           },
@@ -132,7 +133,7 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: HEADER_H + 16, paddingBottom: botPad + 140 },
+          { paddingTop: HEADER_H + 16, paddingBottom: insets.bottom + 140 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -263,7 +264,6 @@ function HomeChatBar({
     onSend(msg);
   }
 
-  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
   const borderColor = focused ? colors.primary + "90" : colors.border;
 
   const profileOpacity = profileAnim;
@@ -275,7 +275,7 @@ function HomeChatBar({
       style={[
         barStyles.wrap,
         {
-          paddingBottom: botPad + 12,
+          paddingBottom: insets.bottom + 8,
           backgroundColor: colors.background,
           borderTopColor: colors.border,
         },
