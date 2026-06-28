@@ -237,17 +237,38 @@ function HomeChatBar({
 
   const borderColor = focused ? colors.primary + "80" : colors.border;
 
+  const profileOpacity = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+  const profileWidth = expandAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [44, 0, 0],
+  });
+  const profileMargin = expandAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [10, 0, 0],
+  });
+
   return (
     <View style={[barStyles.wrap, { paddingBottom: bottomPad + 12 }]}>
-      {/* Profile button — hidden (opacity 0, pointer-events none), still exists in tree */}
-      <TouchableOpacity
-        style={[barStyles.profileBtn, { backgroundColor: colors.card, opacity: 0 }]}
-        onPress={onProfile}
-        activeOpacity={0.75}
-        pointerEvents="none"
+      {/* Profile button — visible normally, animates away on input focus */}
+      <Animated.View
+        style={{
+          width: profileWidth,
+          opacity: profileOpacity,
+          marginRight: profileMargin,
+          overflow: "hidden",
+        }}
       >
-        <Feather name="user" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[barStyles.profileBtn, { backgroundColor: colors.card }]}
+          onPress={onProfile}
+          activeOpacity={0.75}
+        >
+          <Feather name="user" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </Animated.View>
 
       <Animated.View
         style={[
