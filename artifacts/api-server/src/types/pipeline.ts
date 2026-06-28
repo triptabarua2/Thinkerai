@@ -236,4 +236,10 @@ export type PipelineEvent =
   | { type: "credit_confirm"; action: string; credits: number; balance: number }
   | { type: "approval_needed"; content: string; artifactType: string; version: number; agentCount: number }
   | { type: "final_output"; summary: string; artifactType: string; creditsUsed: number; agentCount: number; version: number }
+  | { type: "image_approval_needed"; imageUrl: string; description: string; imagePrompt: string; stepId: string; attemptNumber: number; maxAttempts: number }
+  | { type: "feedback_prompt"; previousOutput: string; artifactType: string }
+  | { type: "fix_limit_reached"; limitType: "medium" | "rebuild"; used: number; max: number }
+  | { type: "founder_mode_activated"; message: string }
+  | { type: "analytics"; event: string; properties: Record<string, unknown> }
+  | { type: "error"; code: string; userMessage: string; developerMessage: string }
   | { type: "done"; status: "complete" | "failed" | "halted"; error?: string };

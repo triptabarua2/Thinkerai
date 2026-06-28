@@ -24,6 +24,7 @@ import { CreditConfirmModal } from "@/components/CreditConfirmModal";
 import { DecisionMemoryBanner } from "@/components/DecisionMemoryBanner";
 import { FixCounterBar, MEDIUM_LIMIT, REBUILD_LIMIT } from "@/components/FixCounterBar";
 import { FixLimitModal } from "@/components/FixLimitModal";
+import { ImageOutputCard } from "@/components/ImageOutputCard";
 import { MessageBubble } from "@/components/MessageBubble";
 import PipelineProgress, { type AgentStep } from "@/components/PipelineProgress";
 import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
@@ -36,7 +37,7 @@ import type { Message } from "@/context/AppContext";
 import { AGENTS, agentTypeToDomain, detectAgentType, type AgentType } from "@/lib/agents";
 import { getBaseUrl } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
-import { useRTL } from "@/hooks/useRTL";
+import { applyRTL, useRTL } from "@/hooks/useRTL";
 
 let msgCounter = 0;
 function genId(): string {
@@ -114,6 +115,27 @@ export default function ChatScreen() {
   const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>(buildInitialSteps());
   const [pipelineActive, setPipelineActive] = useState(false);
   const [pipelineLabel, setPipelineLabel] = useState("");
+
+  // Image approval state (Section 5.11 — Visual Asset Approval Flow)
+  const [imageApproval, setImageApproval] = useState<{
+    visible: boolean;
+    imageUrl: string;
+    description: string;
+    imagePrompt: string;
+    stepId: string;
+    attemptNumber: number;
+    maxAttempts: number;
+    pendingMessage: string;
+  } | null>(null);
+
+  // Post-delivery feedback state (Section 9.4)
+  const [feedbackPrompt, setFeedbackPrompt] = useState<{
+    visible: boolean;
+    artifactType: string;
+  } | null>(null);
+
+  // Founder Mode notification
+  const [founderModeActive, setFounderModeActive] = useState(false);
 
   const initializedRef = useRef(false);
   const autoSentRef = useRef(false);
@@ -394,6 +416,58 @@ export default function ChatScreen() {
     ]);
   }
 
+  // ── Image Approval Handlers (Section 5.11) ──────────────────────────────
+  function handleImageApprove() {
+    if (!imageApproval) return;
+    const pending = imageApproval.pendingMessage;
+    setImageApproval(null);
+    // Continue pipeline with image approved
+    sendMessageWithOptions(pending, { imageApproved: true, imageAttemptNumber: imageApproval.attemptNumber });
+  }
+
+  function handleImageRevise(instruction: string) {
+    if (!imageApproval) return;
+    const pending = imageApproval.pendingMessage;
+    setImageApproval(null);
+    sendMessage(`Revise the image: ${instruction}`, `Revise image: ${instruction}`);
+    void pending;
+  }
+
+  function handleImageRegenerate() {
+    if (!imageApproval) return;
+    if (imageApproval.attemptNumber >= imageApproval.maxAttempts) return;
+    const pending = imageApproval.pendingMessage;
+    const nextAttempt = imageApproval.attemptNumber + 1;
+    setImageApproval(null);
+    sendMessageWithOptions(pending, { imageAttemptNumber: nextAttempt });
+  }
+
+  // ── Feedback Handlers (Section 9.4) ────────────────────────────────────
+  function handleFeedbackSelect(feedbackType: "bug" | "missing_feature" | "style" | "vague") {
+    setFeedbackPrompt(null);
+    const prompts: Record<string, string> = {
+      bug: "There's a bug in the output — ",
+      missing_feature: "Something is missing — ",
+      style: "I'd like to change the style — ",
+      vague: "Something isn't right with the output.",
+    };
+    const pre = prompts[feedbackType] ?? "";
+    if (feedbackType === "vague") {
+      sendMessage(pre);
+    } else {
+      // Pre-fill the input by sending a message that triggers clarification
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: genId(),
+          role: "assistant",
+          content: `What specifically is ${feedbackType === "bug" ? "broken" : feedbackType === "missing_feature" ? "missing" : "wrong with the style"}? Describe it and I'll fix it.`,
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+  }
+
   async function handleRollback(versionNum: number) {
     const version = versionHistory.find((v) => v.version_number === versionNum);
     if (!version) return;
@@ -636,6 +710,8 @@ export default function ChatScreen() {
             case "language_detected": {
               const langCode = event.language as string;
               setDetectedLanguage(langCode);
+              // Apply RTL layout if the detected language is RTL (Section 18.4)
+              applyRTL(langCode);
               break;
             }
 
@@ -845,6 +921,80 @@ export default function ChatScreen() {
               break;
             }
 
+            case "image_approval_needed": {
+              // Visual Asset Approval Flow (Section 5.11) — pause pipeline
+              setImageApproval({
+                visible: true,
+                imageUrl: event.imageUrl as string,
+                description: event.description as string,
+                imagePrompt: event.imagePrompt as string,
+                stepId: event.stepId as string,
+                attemptNumber: event.attemptNumber as number,
+                maxAttempts: event.maxAttempts as number,
+                pendingMessage: originalText,
+              });
+              setPipelineActive(false);
+              break;
+            }
+
+            case "feedback_prompt": {
+              // Post-delivery feedback loop (Section 9.4)
+              setFeedbackPrompt({
+                visible: true,
+                artifactType: (event.artifactType as string) ?? "output",
+              });
+              break;
+            }
+
+            case "founder_mode_activated": {
+              setFounderModeActive(true);
+              const chunk = `🚀 **Founder Mode activated** — ${event.message as string}\n\n`;
+              fullContent += chunk;
+              if (!assistantAdded) {
+                setShowTyping(false);
+                setMessages((prev) => [
+                  ...prev,
+                  { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                ]);
+                assistantAdded = true;
+              } else {
+                setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+              }
+              break;
+            }
+
+            case "fix_limit_reached": {
+              // Server-side fix limit enforcement echo (Section 9.5)
+              setFixLimitModal({ visible: true, type: event.limitType as "medium" | "rebuild" });
+              setPipelineActive(false);
+              break;
+            }
+
+            case "error": {
+              // Standard error codes (Section 10.3)
+              const errChunk = `⚠️ **Error**: ${event.userMessage as string}`;
+              if (!assistantAdded) {
+                setShowTyping(false);
+                setMessages((prev) => [
+                  ...prev,
+                  { id: assistantId, role: "assistant", content: errChunk, agentType: activeAgent, timestamp: Date.now() },
+                ]);
+                assistantAdded = true;
+              } else {
+                fullContent += `\n\n${errChunk}`;
+                setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+              }
+              break;
+            }
+
+            case "analytics": {
+              // Analytics events (Section 20.1) — client-side logging only
+              if (__DEV__) {
+                console.log("[analytics]", event.event, event.properties);
+              }
+              break;
+            }
+
             case "done": {
               setPipelineActive(false);
               setPipelineLabel("");
@@ -1009,6 +1159,52 @@ export default function ChatScreen() {
                   onApprove={handleOutputApprove}
                   onChangeSomething={handleOutputChangeSomething}
                 />
+              )}
+              {imageApproval?.visible && (
+                <ImageOutputCard
+                  imageUri={imageApproval.imageUrl}
+                  description={imageApproval.description}
+                  attemptNumber={imageApproval.attemptNumber}
+                  maxAttempts={imageApproval.maxAttempts}
+                  onApprove={handleImageApprove}
+                  onRevise={handleImageRevise}
+                  onRegenerate={handleImageRegenerate}
+                />
+              )}
+              {feedbackPrompt?.visible && (
+                <View style={[styles.feedbackCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={[styles.feedbackTitle, { color: colors.text }]}>
+                    How did the output turn out?
+                  </Text>
+                  <Text style={[styles.feedbackSub, { color: colors.textSecondary }]}>
+                    Your feedback helps me fix it immediately.
+                  </Text>
+                  <View style={styles.feedbackRow}>
+                    {(["bug", "missing_feature", "style"] as const).map((type) => {
+                      const labels: Record<string, string> = {
+                        bug: "🐛 Bug",
+                        missing_feature: "➕ Missing",
+                        style: "🎨 Style",
+                      };
+                      return (
+                        <TouchableOpacity
+                          key={type}
+                          style={[styles.feedbackChip, { backgroundColor: colors.card, borderColor: colors.border }]}
+                          onPress={() => handleFeedbackSelect(type)}
+                        >
+                          <Text style={[styles.feedbackChipText, { color: colors.text }]}>
+                            {labels[type]}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TouchableOpacity onPress={() => setFeedbackPrompt(null)}>
+                    <Text style={[styles.feedbackDismiss, { color: colors.textSecondary }]}>
+                      Looks great, thanks
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </>
           }
@@ -1231,5 +1427,41 @@ const styles = StyleSheet.create({
   versionPillText: {
     fontSize: 11,
     fontWeight: "600",
+  },
+  feedbackCard: {
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
+  feedbackTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  feedbackSub: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  feedbackRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  feedbackChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  feedbackChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  feedbackDismiss: {
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
   },
 });

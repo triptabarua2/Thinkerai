@@ -10,7 +10,7 @@ import { runReviewerAgent } from "../agents/reviewerAgent.js";
 import { runCriticAgent } from "../agents/criticAgent.js";
 import { runJudgeAgent, isHighRiskContent } from "../agents/judgeAgent.js";
 import { runConsensusAgent } from "../agents/consensusAgent.js";
-import { estimateSessionCredits, isFeatureGated } from "../lib/thinkCredits.js";
+import { estimateSessionCredits, isFeatureGated, requiresConfirmation } from "../lib/thinkCredits.js";
 import type {
   PipelineEvent,
   PipelineState,
@@ -42,11 +42,36 @@ const LOOP_LIMITS: Record<string, number> = {
   consensus_cycle: 2,
 };
 
+// ── Fix limits (Section 9.5) ─────────────────────────────────────────────────
+const FIX_LIMITS = { medium: 10, full_rebuild: 3 } as const;
+
+// ── Version history limits by plan (Section 18.2) ───────────────────────────
+const VERSION_HISTORY_LIMITS: Record<PlanTier, number> = {
+  free: 3,
+  pro: 10,
+  founder: 25,
+  enterprise: 50,
+};
+
+// ── Model name sanitizer (Section 6.5) ──────────────────────────────────────
+// No provider or model name may appear in any user-facing output.
+const MODEL_NAMES_RE =
+  /\b(claude[\s\-]?[\w.]*|gpt[\s\-]?[\w.]*|gemini[\s\-]?[\w.]*|deepseek[\s\-]?[\w.]*|llama[\s\-]?[\w.]*|mistral[\s\-]?[\w.]*|grok[\s\-]?[\w.]*|o1[\s\-]?[\w.]*|o3[\s\-]?[\w.]*|anthropic|openai|google\s+ai|dall[\s\-]?e[\s\-]?[\w.]*|stability\s+ai)\b/gi;
+
+function sanitizeModelNames(text: string): string {
+  return text.replace(MODEL_NAMES_RE, "our AI");
+}
+
 // ── Decision Memory detection patterns ──────────────────────────────────────
 const DECISION_PATTERNS = [
   /\b(always|never|from now on|for all my projects|every time|remember that|save this)\b/i,
   /\b(use only|don't use|prefer|avoid|must use|must not)\b.{5,}/i,
 ];
+
+// ── Founder Mode detection patterns (Section 15.5) ──────────────────────────
+const FOUNDER_MODE_EXPLICIT = /\bActivate\s+Founder\s+Mode\b/i;
+const FOUNDER_MODE_KEYWORDS =
+  /\b(market analysis|revenue model|business model|competitive analysis|pitch deck|investor|go.to.market|monetize|startup|saas pricing|unit economics)\b/i;
 
 function detectDecisionMemory(message: string): DecisionMemoryEntry | null {
   const matched = DECISION_PATTERNS.some((p) => p.test(message));
@@ -88,8 +113,9 @@ function logAgent(state: PipelineState, log: AgentLog): void {
   state.agentLogs.push(log);
 }
 
-function saveVersion(state: PipelineState, description: string): number {
+function saveVersion(state: PipelineState, description: string, planTier: PlanTier): number {
   if (!state.builderOutput) return state.current_version;
+  const limit = VERSION_HISTORY_LIMITS[planTier] ?? 10;
   const newVersion = state.current_version + 1;
   const snapshot: VersionSnapshot = {
     version_number: newVersion,
@@ -98,13 +124,29 @@ function saveVersion(state: PipelineState, description: string): number {
     timestamp: Date.now(),
     description,
   };
-  // Keep only last 10 versions
-  if (state.version_history.length >= 10) {
+  if (state.version_history.length >= limit) {
     state.version_history.shift();
   }
   state.version_history.push(snapshot);
   state.current_version = newVersion;
   return newVersion;
+}
+
+function emitAnalytics(
+  emit: (event: PipelineEvent) => void,
+  eventName: string,
+  properties: Record<string, unknown>
+): void {
+  emit({ type: "analytics", event: eventName, properties });
+}
+
+function emitError(
+  emit: (event: PipelineEvent) => void,
+  code: string,
+  userMessage: string,
+  developerMessage: string
+): void {
+  emit({ type: "error", code, userMessage, developerMessage });
 }
 
 // ── Thinker Core ─────────────────────────────────────────────────────────────
@@ -129,10 +171,62 @@ export async function runThinkerCore(
     decisionMemory?: DecisionMemoryEntry[];
     versionHistory?: VersionSnapshot[];
     currentVersion?: number;
+    imageAttemptNumber?: number;
+    imageApproved?: boolean;
   }
 ): Promise<void> {
   const startTime = Date.now();
   const planTier: PlanTier = options?.planTier ?? "free";
+
+  // ── Fix Limit Enforcement (Section 9.5) — server-side guard ──────────────
+  if (options?.fixType === "medium" && (options?.medium_fix_count ?? 0) >= FIX_LIMITS.medium) {
+    emitError(
+      emit,
+      "PIPELINE_004",
+      "You've reached 10 medium fixes on this project. Narrow the scope or start a new chat.",
+      `medium_fix_count=${options.medium_fix_count} >= limit=${FIX_LIMITS.medium}`
+    );
+    emit({
+      type: "fix_limit_reached",
+      limitType: "medium",
+      used: options.medium_fix_count ?? 0,
+      max: FIX_LIMITS.medium,
+    });
+    emit({ type: "done", status: "failed" });
+    return;
+  }
+
+  if (
+    options?.fixType === "full_rebuild" &&
+    (options?.full_rebuild_count ?? 0) >= FIX_LIMITS.full_rebuild
+  ) {
+    emitError(
+      emit,
+      "PIPELINE_004",
+      "You've done 3 full rebuilds on this project. Consider starting a fresh chat.",
+      `full_rebuild_count=${options.full_rebuild_count} >= limit=${FIX_LIMITS.full_rebuild}`
+    );
+    emit({
+      type: "fix_limit_reached",
+      limitType: "rebuild",
+      used: options.full_rebuild_count ?? 0,
+      max: FIX_LIMITS.full_rebuild,
+    });
+    emit({ type: "done", status: "failed" });
+    return;
+  }
+
+  // ── Founder Mode gate (Section 15.5) ─────────────────────────────────────
+  const founderModeRequested =
+    FOUNDER_MODE_EXPLICIT.test(message) || FOUNDER_MODE_KEYWORDS.test(message);
+  if (founderModeRequested && isFeatureGated("founder_mode", planTier)) {
+    emit({
+      type: "content",
+      text: "Founder Mode is available on Pro and above. Upgrade to access full business analysis, competitive assessment, and go-to-market thinking.",
+    });
+    emit({ type: "done", status: "complete" });
+    return;
+  }
 
   // ── Initialize Pipeline State ───────────────────────────────────────────
   const state: PipelineState = {
@@ -188,12 +282,10 @@ export async function runThinkerCore(
   };
 
   // ── Stage 4/5: Output Approval fast-path (Section 16) ────────────────────
-  // When user approves the built output (Stage 4), skip all agents and go
-  // straight to emitting Stage 5 final_output from the last saved version.
   if (options?.outputApproved) {
     const lastVersion = (options?.versionHistory ?? []).at(-1);
     if (lastVersion) {
-      const agentCount = 7; // intent + clarify + planner + builder + reviewer + critic + judge
+      const agentCount = 7;
       emit({
         type: "final_output",
         summary: `Build complete. Reviewed by ${agentCount} agents and approved. Version ${lastVersion.version_number} is your final output.`,
@@ -202,7 +294,13 @@ export async function runThinkerCore(
         agentCount,
         version: lastVersion.version_number,
       });
-      emit({ type: "content", text: lastVersion.content });
+      emit({ type: "content", text: sanitizeModelNames(lastVersion.content) });
+      // Post-delivery feedback prompt (Section 9.4)
+      emit({
+        type: "feedback_prompt",
+        previousOutput: lastVersion.content.slice(0, 200),
+        artifactType: lastVersion.artifactType,
+      });
       emit({ type: "done", status: "complete" });
       return;
     }
@@ -225,7 +323,6 @@ export async function runThinkerCore(
   const domainPreSelected = !!options?.domain && options.domain !== "general";
 
   if (domainPreSelected) {
-    // §4.4.2 Case 1: user picked domain → skip Intent, derive intent from domain
     const domainToIntent: Record<string, import("../types/pipeline.js").IntentType> = {
       coding: "app", devops: "app", security: "app", qa: "app",
       design: "app", canvas: "app",
@@ -254,7 +351,6 @@ export async function runThinkerCore(
       failover_cost: 0,
     });
   } else {
-    // §4.4.2 Case 2/3: no domain → run Intent Agent normally
     emit({ type: "agent_start", agent: "intent", label: "Analyzing your request..." });
     intentResult = await runIntentAgent(message, history);
     logAgent(state, {
@@ -286,7 +382,7 @@ export async function runThinkerCore(
   logRouting(state, "intent", intentResult.next_action, intentResult.reason);
   emit({ type: "agent_done", agent: "intent", data: intentResult });
 
-  // Show thinking summary to user (Section 16, Stage 1)
+  // Show thinking summary (Section 16, Stage 1)
   const estimatedCredits = estimateSessionCredits(state.thinkingLevel);
   const levelLabels: Record<ThinkingLevel, string> = {
     low: "Quick Answer",
@@ -309,6 +405,28 @@ export async function runThinkerCore(
     estimatedCredits,
   });
 
+  // ── Think Credits Confirmation (Section 21, §10.7) ───────────────────────
+  // For medium+ pipelines, emit credit_confirm so the client can display the cost.
+  // The actual gate is client-side; this event serves as a server-side confirmation.
+  if (requiresConfirmation(estimatedCredits) && !options?.blueprintApproved) {
+    emit({
+      type: "credit_confirm",
+      action: `${levelLabels[state.thinkingLevel]} pipeline`,
+      credits: estimatedCredits,
+      balance: 0, // real balance fetched from DB by client
+    });
+  }
+
+  // ── Analytics: pipeline_started ──────────────────────────────────────────
+  emitAnalytics(emit, "pipeline_started", {
+    thinkingLevel: state.thinkingLevel,
+    domain: options?.domain ?? "general",
+    intentType: state.intentType,
+    creditsEstimated: estimatedCredits,
+    planTier,
+    language: lang,
+  });
+
   // ── 2. Direct Chat Path ─────────────────────────────────────────────────
   const forceDirectAnswer =
     state.thinkingLevel === "low" ||
@@ -322,9 +440,12 @@ export async function runThinkerCore(
         ...history,
         { role: "user", content: message },
       ];
-      await llmStream(DIRECT_CHAT_SYSTEM(lang), chatMessages, "mid", (text) =>
-        emit({ type: "content", text })
-      );
+      let rawContent = "";
+      await llmStream(DIRECT_CHAT_SYSTEM(lang), chatMessages, "mid", (text) => {
+        rawContent += text;
+        emit({ type: "content", text: sanitizeModelNames(text) });
+      });
+      void rawContent;
     } catch {
       const demo = `I'm Thinker AI. You asked: *${message}*\n\nI'm ready to help — connect an API key for full AI responses.`;
       for (const word of demo.split(" ")) {
@@ -332,6 +453,12 @@ export async function runThinkerCore(
         await new Promise((r) => setTimeout(r, 10));
       }
     }
+    emitAnalytics(emit, "pipeline_complete", {
+      thinkingLevel: state.thinkingLevel,
+      creditsUsed: 1,
+      durationMs: Date.now() - startTime,
+      failoverCount: 0,
+    });
     emit({ type: "done", status: "complete" });
     return;
   }
@@ -382,6 +509,15 @@ export async function runThinkerCore(
     },
   });
 
+  // Analytics: clarification shown
+  if (clarification.questions.length > 0) {
+    emitAnalytics(emit, "clarification_shown", {
+      questionCount: clarification.questions.length,
+      clarificationDepth: state.clarificationDepth,
+      goalDiscoveryMode: clarification.goalDiscoveryMode,
+    });
+  }
+
   // If incomplete — return questions to user
   if ((!clarification.complete || clarification.goalDiscoveryMode) && clarification.questions.length > 0) {
     state.clarificationDepth += 1;
@@ -420,6 +556,15 @@ export async function runThinkerCore(
     );
 
     state.strategyBrief = strategyResult.strategicBrief;
+
+    // Emit Founder Mode activated event if detected (Section 15.5)
+    if (strategyResult.founderMode && !isFeatureGated("founder_mode", planTier)) {
+      emit({
+        type: "founder_mode_activated",
+        message: "Founder Mode active — expanding analysis to include market, business model, and competitive risk.",
+      });
+    }
+
     logRouting(state, "strategy", strategyResult.next_action, strategyResult.reason);
     logAgent(state, {
       agent_name: "strategy",
@@ -499,8 +644,6 @@ export async function runThinkerCore(
       emit({ type: "agent_done", agent: "planner", data: { steps: planResult.steps.length } });
 
       // ── Blueprint Approval Gate (Section 16, Stage 2) ──────────────────
-      // For High/Consensus thinking, show blueprint and wait for user approval
-      // Skip if already approved in this session
       if (!state.blueprintApproved && (state.thinkingLevel === "high" || state.thinkingLevel === "consensus")) {
         state.status = "blueprint_review";
         const techStack = inferTechStack(state.intentType, state.requirements);
@@ -561,17 +704,25 @@ export async function runThinkerCore(
     let reviewerRetries = 0;
     let lastBuilderOutput = state.builderOutput;
     let lastReviewerResult = state.reviewerResult;
+    // Track image attempt number for Visual Asset Approval Flow (Section 5.11)
+    let imageAttemptNumber = options?.imageAttemptNumber ?? 0;
 
     builderReviewerLoop: while (true) {
       const imageSteps = state.plan.filter((s) => s.outputType === "image");
       const codeSteps = state.plan.filter((s) => s.outputType !== "image");
 
-      // ── Design Agent (Section 5.10) ─────────────────────────────────
+      // ── Design Agent + Visual Asset Approval Flow (Section 5.10, 5.11) ──
       if (imageSteps.length > 0 && !isFeatureGated("design_agent", planTier)) {
+        const IMAGE_MAX_ATTEMPTS = 3;
         for (const imgStep of imageSteps) {
           const designStart = Date.now();
           state.current_agent = "design";
-          emit({ type: "agent_start", agent: "design", label: `Generating visual asset: ${imgStep.description.slice(0, 40)}...` });
+          imageAttemptNumber += 1;
+          emit({
+            type: "agent_start",
+            agent: "design",
+            label: `Generating visual asset: ${imgStep.description.slice(0, 40)}... (attempt ${imageAttemptNumber}/${IMAGE_MAX_ATTEMPTS})`,
+          });
 
           const designOutput = await runDesignAgent(
             imgStep.description,
@@ -582,19 +733,29 @@ export async function runThinkerCore(
           logAgent(state, {
             agent_name: "design",
             input_summary: imgStep.description.slice(0, 80),
-            output_summary: `Status: ${designOutput.status}`,
+            output_summary: `Status: ${designOutput.status}, Attempt: ${imageAttemptNumber}/${IMAGE_MAX_ATTEMPTS}`,
             duration_ms: Date.now() - designStart,
             status: designOutput.status === "failed" ? "failed" : "success",
-            retry_count: 0,
+            retry_count: imageAttemptNumber - 1,
             failover_cost: 0,
           });
 
-          if (designOutput.imageUrl) {
-            emit({ type: "content", text: `\n\n**Visual Asset**: ${designOutput.description}\n\n![Generated Image](${designOutput.imageUrl})\n` });
-          } else {
-            emit({ type: "content", text: `\n\n**Visual Asset**: ${designOutput.description}\n\n*Image generation not available — prompt ready: "${designOutput.imagePrompt.slice(0, 100)}..."*\n` });
-          }
+          // ── Visual Asset Approval Gate (Section 5.11) ─────────────────
+          // Show image to user for approve/revise/regenerate before proceeding.
+          // Never mark project complete until image is approved.
+          emit({
+            type: "image_approval_needed",
+            imageUrl: designOutput.imageUrl ?? "",
+            description: designOutput.description,
+            imagePrompt: designOutput.imagePrompt,
+            stepId: imgStep.id,
+            attemptNumber: imageAttemptNumber,
+            maxAttempts: IMAGE_MAX_ATTEMPTS,
+          });
           emit({ type: "agent_done", agent: "design", data: { status: designOutput.status } });
+          // Pipeline pauses here — client must send imageApproved:true to continue
+          emit({ type: "done", status: "complete" });
+          return;
         }
       }
 
@@ -611,15 +772,15 @@ export async function runThinkerCore(
           codeSteps.length > 0 ? codeSteps : state.plan,
           state.researchFindings,
           state.requirements,
-          (text) => emit({ type: "content", text }),
+          (text) => emit({ type: "content", text: sanitizeModelNames(text) }),
           lastReviewerResult ? { issues: lastReviewerResult.issues } : undefined
         );
 
         state.builderOutput = builderOutput;
         lastBuilderOutput = builderOutput;
 
-        // Save version on every builder output
-        const versionNum = saveVersion(state, `Build attempt ${builderRetries + 1}`);
+        // Save version with plan-tier-based limit
+        const versionNum = saveVersion(state, `Build attempt ${builderRetries + 1}`, planTier);
         emit({
           type: "version_saved",
           version_number: versionNum,
@@ -686,6 +847,12 @@ export async function runThinkerCore(
         if (!reviewerResult.passed && hasHighSeverity && reviewerResult.next_action === "retry") {
           incrementLoop(state, "builder");
           if (isLoopExceeded(state, "builder")) {
+            emitError(
+              emit,
+              "PIPELINE_004",
+              "I ran into a difficulty on this step. Your work is saved.",
+              `loop_count exceeded threshold for builder agent`
+            );
             emit({
               type: "pipeline_halt",
               reason: "Builder has been retried too many times. Saving progress.",
@@ -708,7 +875,7 @@ export async function runThinkerCore(
     } // end builderReviewerLoop
 
     // ── 9. Critic Agent ──────────────────────────────────────────────────
-    if (lastBuilderOutput) {
+    if (lastBuilderOutput && !isFeatureGated("critic_agent" as any, planTier)) {
       const criticStart = Date.now();
       state.current_agent = "critic";
       state.status = "critiquing";
@@ -728,6 +895,14 @@ export async function runThinkerCore(
         failover_cost: 0,
       });
       emit({ type: "agent_done", agent: "critic", data: { severity: criticResult.overallSeverity } });
+    } else if (lastBuilderOutput && !state.criticResult) {
+      // Free plan: skip critic but proceed
+      state.criticResult = {
+        concerns: [],
+        overallSeverity: "low",
+        next_action: "proceed",
+        reason: "Critic skipped on free plan",
+      } as any;
     }
 
     // ── 10. Judge Agent ──────────────────────────────────────────────────
@@ -755,6 +930,12 @@ export async function runThinkerCore(
       if (!judgeResult.approved && !judgeResult.borderline) {
         incrementLoop(state, "builder");
         if (isLoopExceeded(state, "builder")) {
+          emitError(
+            emit,
+            "PIPELINE_003",
+            "I ran into a difficulty on this step. Your work is saved.",
+            `All models in pool exhausted for agent=builder`
+          );
           emit({
             type: "pipeline_halt",
             reason: "Builder failed Judge review too many times. Saving best attempt.",
@@ -837,8 +1018,6 @@ export async function runThinkerCore(
   } // end plannerLoop
 
   // ── 12. Stage 4 — Output Approval Gate (Section 16) ─────────────────────
-  // For High/Consensus thinking, show the built output and wait for approval
-  // before emitting Stage 5 final output. Skip for Low/Medium (no approval gate).
   const needsOutputApproval =
     (state.thinkingLevel === "high" || state.thinkingLevel === "consensus") &&
     state.builderOutput &&
@@ -872,7 +1051,23 @@ export async function runThinkerCore(
       agentCount: totalAgents,
       version: state.current_version,
     });
+    // Post-delivery feedback prompt (Section 9.4)
+    emit({
+      type: "feedback_prompt",
+      previousOutput: state.builderOutput.content.slice(0, 200),
+      artifactType: state.builderOutput.artifactType,
+    });
   }
+
+  // Analytics: pipeline complete
+  emitAnalytics(emit, "pipeline_complete", {
+    thinkingLevel: state.thinkingLevel,
+    creditsUsed: state.thinkCreditsUsed,
+    durationMs: Date.now() - startTime,
+    agentCount: totalAgents,
+    failoverCount: state.failover_log.length,
+    planTier,
+  });
 
   emit({ type: "done", status: "complete" });
 }

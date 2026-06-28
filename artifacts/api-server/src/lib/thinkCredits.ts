@@ -56,6 +56,7 @@ export function isFeatureGated(feature: string, tier: PlanTier): boolean {
     founder_mode: ["pro", "founder", "enterprise"],
     research_agent: ["pro", "founder", "enterprise"],
     design_agent: ["pro", "founder", "enterprise"],
+    critic_agent: ["pro", "founder", "enterprise"],
     consensus_agent: ["founder", "enterprise"],
     decision_memory: ["founder", "enterprise"],
     thinking_high: ["pro", "founder", "enterprise"],

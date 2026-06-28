@@ -6,6 +6,7 @@ import pipelineRouter from "./pipeline";
 import stripeRouter from "./stripe";
 import uploadRouter from "./upload";
 import downloadRouter from "./download";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/pipeline", pipelineRouter);
 router.use(stripeRouter);
 router.use(uploadRouter);
 router.use(downloadRouter);
+router.use(feedbackRouter);
 
 export default router;
