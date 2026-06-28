@@ -167,6 +167,7 @@ export default function HomeScreen() {
         colors={colors}
         insets={insets}
         onSend={handleStartChat}
+        onProfile={() => setProfileSheetOpen(true)}
       />
 
       {/* Overlays — rendered last so they sit above all content */}
@@ -180,10 +181,12 @@ function HomeChatBar({
   colors,
   insets,
   onSend,
+  onProfile,
 }: {
   colors: ReturnType<typeof useColors>;
   insets: ReturnType<typeof useSafeAreaInsets>;
   onSend: (text: string) => void;
+  onProfile: () => void;
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
@@ -236,6 +239,16 @@ function HomeChatBar({
 
   return (
     <View style={[barStyles.wrap, { paddingBottom: bottomPad + 12 }]}>
+      {/* Profile button — hidden (opacity 0, pointer-events none), still exists in tree */}
+      <TouchableOpacity
+        style={[barStyles.profileBtn, { backgroundColor: colors.card, opacity: 0 }]}
+        onPress={onProfile}
+        activeOpacity={0.75}
+        pointerEvents="none"
+      >
+        <Feather name="user" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
+
       <Animated.View
         style={[
           barStyles.inputWrap,
@@ -282,9 +295,20 @@ const barStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    flexDirection: "row",
+    alignItems: "flex-end",
     paddingHorizontal: 16,
     paddingTop: 10,
+    gap: 10,
     backgroundColor: "transparent",
+  },
+  profileBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
   },
   inputWrap: {
     flexDirection: "row",
