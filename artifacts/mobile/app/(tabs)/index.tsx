@@ -213,7 +213,7 @@ export default function HomeScreen() {
         colors={colors}
         insets={insets}
         onSend={handleStartChat}
-        onProfile={() => setProfileSheetOpen(true)}
+        onProfile={() => { if (!profileSheetOpen) setProfileSheetOpen(true); }}
       />
 
       <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />

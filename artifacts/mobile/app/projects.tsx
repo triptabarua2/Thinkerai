@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -126,6 +127,27 @@ export default function ProjectsScreen() {
         >
           <Feather name="plus" size={16} color="#fff" />
         </TouchableOpacity>
+      </View>
+
+      {/* Search bar */}
+      <View style={[styles.searchRow, { borderBottomColor: colors.border }]}>
+        <View style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="search" size={15} color={colors.textTertiary} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text, outlineStyle: "none" } as any]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search projects..."
+            placeholderTextColor={colors.textTertiary}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")} hitSlop={8}>
+              <Feather name="x" size={14} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Filter chips */}
@@ -341,6 +363,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  searchRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   filterRow: {
     flexDirection: "row",
