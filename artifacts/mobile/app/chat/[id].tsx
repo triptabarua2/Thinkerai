@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { fetch } from "expo/fetch";
@@ -28,6 +29,7 @@ import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
 import { ThinkingLevelPicker, type ThinkingLevel } from "@/components/ThinkingLevelPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { VersionHistoryCard, type VersionItem } from "@/components/VersionHistoryCard";
+import { FileReceivedCard, type FileCategory } from "@/components/FileReceivedCard";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
 import { AGENTS, agentTypeToDomain, detectAgentType, type AgentType } from "@/lib/agents";
@@ -218,6 +220,101 @@ export default function ChatScreen() {
   }
 
   handleSendRef.current = handleSend;
+
+  async function handleAttach() {
+    if (isStreaming) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const asset = result.assets[0]!;
+
+      const userMsg: Message = {
+        id: genId(),
+        role: "user",
+        content: `📎 Uploading **${asset.name}**…`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setIsStreaming(true);
+      setShowTyping(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const formData = new FormData();
+      formData.append("file", { uri: asset.uri, name: asset.name, type: asset.mimeType ?? "application/octet-stream" } as any);
+      formData.append("intent", "analyze this file");
+      formData.append("planTier", PLAN_TIER);
+
+      const baseUrl = getBaseUrl();
+      const assistantId = genId();
+      let fullContent = "";
+      let assistantAdded = false;
+      const activeAgent = agentType;
+
+      const response = await fetch(`${baseUrl}api/upload`, {
+        method: "POST",
+        headers: { Accept: "text/event-stream" },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error((err as any).error ?? "Upload failed");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6)) as Record<string, unknown>;
+            if (event.type === "content" || event.type === "document_ready") {
+              const chunk = event.type === "content"
+                ? (event.text as string)
+                : `📄 **${(event.result as any)?.file_name}** analyzed`;
+              if (chunk) {
+                fullContent += chunk;
+                if (!assistantAdded) {
+                  setShowTyping(false);
+                  setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() }]);
+                  assistantAdded = true;
+                } else {
+                  setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+                }
+              }
+            }
+          } catch {}
+        }
+      }
+
+      if (id) {
+        const finalMessages = messages.concat(userMsg, fullContent ? [{ id: assistantId, role: "assistant" as const, content: fullContent, agentType: activeAgent, timestamp: Date.now() }] : []);
+        await updateConversation(id, { messages: finalMessages });
+      }
+    } catch (err) {
+      const errMsg: Message = {
+        id: genId(),
+        role: "assistant",
+        content: `Something went wrong uploading the file. Please try again.`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsStreaming(false);
+      setShowTyping(false);
+    }
+  }
 
   async function handleClarifyProceed(answers: Record<string, string>) {
     if (clarifyState.status !== "needed") return;
@@ -659,6 +756,34 @@ export default function ChatScreen() {
               break;
             }
 
+            case "document_ready": {
+              const doc = event.result as Record<string, unknown>;
+              const docSummary = doc.summary as string ?? "";
+              const keyPoints = (doc.key_points as string[]) ?? [];
+              const chunk =
+                `📄 **${doc.file_name}** (${doc.file_type}, ${doc.page_count} pages, ~${doc.word_count} words)\n\n` +
+                `**Summary:** ${docSummary}\n\n` +
+                (keyPoints.length > 0 ? `**Key Points:**\n${keyPoints.map((p: string) => `- ${p}`).join("\n")}` : "");
+              fullContent += chunk;
+              if (!assistantAdded) {
+                setShowTyping(false);
+                setMessages((prev) => [
+                  ...prev,
+                  { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                ]);
+                assistantAdded = true;
+              } else {
+                setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
+              }
+              break;
+            }
+
+            case "file_security_warning": {
+              const warnMsg = event.message as string;
+              fullContent += `\n⚠️ **Security Notice:** ${warnMsg}\n\n`;
+              break;
+            }
+
             case "done": {
               setPipelineActive(false);
               setPipelineLabel("");
@@ -885,6 +1010,7 @@ export default function ChatScreen() {
 
           <ChatInput
             onSend={handleSend}
+            onAttach={handleAttach}
             disabled={isStreaming || isClarifying}
             placeholder={
               isClarifying

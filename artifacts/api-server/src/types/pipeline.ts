@@ -197,10 +197,24 @@ export type PipelineStatus =
   | "critiquing"
   | "judging"
   | "consensus"
+  | "document_analysis"
   | "complete"
   | "failed"
   | "halted"
   | "awaiting_signature";
+
+export interface DocumentResult {
+  summary: string;
+  key_points: string[];
+  sections: { title: string; content: string }[];
+  data_tables: { headers: string[]; rows: string[][] }[];
+  entities: string[];
+  language: string;
+  page_count: number;
+  word_count: number;
+  file_name: string;
+  file_type: string;
+}
 
 export type PipelineEvent =
   | { type: "agent_start"; agent: string; label: string }
@@ -213,6 +227,8 @@ export type PipelineEvent =
   | { type: "decision_saved"; rule: string; confirmation: string }
   | { type: "version_saved"; version_number: number; description: string }
   | { type: "language_detected"; language: string; languageName: string }
+  | { type: "document_ready"; result: DocumentResult }
+  | { type: "file_security_warning"; code: string; message: string }
   | { type: "content"; text: string }
   | { type: "pipeline_retry"; agent: string; attempt: number }
   | { type: "pipeline_halt"; reason: string; completedSteps: number; totalSteps: number }
