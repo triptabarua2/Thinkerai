@@ -197,10 +197,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#00000055",
   },
   sheet: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
     paddingTop: 12,
     maxHeight: "78%",
+    overflow: "hidden",
   },
   sheetHandle: {
     width: 36,
