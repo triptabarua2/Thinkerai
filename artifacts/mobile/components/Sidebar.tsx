@@ -386,14 +386,15 @@ export function Sidebar({ visible, onClose }: Props) {
           {[
             { icon: "folder", label: "Projects" },
             { icon: "zap", label: "Workflows" },
-            { icon: "settings", label: "Settings" },
+            { icon: "settings", label: "Settings", onPress: () => { onClose(); router.push("/settings" as any); } },
           ].map((item) => (
             <TouchableOpacity
               key={item.label}
-              style={styles.footerItem}
+              style={[styles.footerItem, { borderColor: colors.border, backgroundColor: colors.card }]}
               activeOpacity={0.7}
+              onPress={(item as any).onPress}
             >
-              <Feather name={item.icon as any} size={16} color={colors.textSecondary} />
+              <Feather name={item.icon as any} size={15} color={colors.textSecondary} />
               <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>
                 {item.label}
               </Text>
@@ -543,7 +544,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   closeBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   domainScroll: {
     maxHeight: 44,
@@ -611,9 +616,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   convTitle: {
     fontSize: 13,
@@ -639,11 +646,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   footer: {
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
-    paddingTop: 8,
+    paddingTop: 10,
     paddingBottom: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   footerItem: {
     flex: 1,
@@ -652,7 +660,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   footerLabel: {
     fontSize: 13,
