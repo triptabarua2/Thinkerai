@@ -89,43 +89,54 @@ export default function HomeScreen() {
   const hPad = 16;
   const cardW = (W - hPad * 2 - gap * (cols - 1)) / cols;
 
+  const HEADER_H = topPad + 68; // paddingTop + 12 + 44btn + 12
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {/* Fixed Header — always at the top, never scrolls away */}
+      <View
+        style={[
+          styles.fixedHeader,
+          {
+            paddingTop: topPad + 12,
+            backgroundColor: colors.background,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setSidebarOpen(true)}
+          activeOpacity={0.7}
+          hitSlop={8}
+        >
+          <Feather name="menu" size={20} color={colors.text} />
+        </TouchableOpacity>
+
+        <View style={styles.logoWrap}>
+          <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
+          <Text style={[styles.logoText, { color: colors.text }]}>Thinker AI</Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleNewChat}
+          activeOpacity={0.7}
+          hitSlop={8}
+        >
+          <Feather name="edit" size={20} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: topPad + 8, paddingBottom: botPad + 140 },
+          { paddingTop: HEADER_H + 16, paddingBottom: botPad + 140 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => setSidebarOpen(true)}
-            activeOpacity={0.7}
-            hitSlop={8}
-          >
-            <Feather name="menu" size={20} color={colors.text} />
-          </TouchableOpacity>
-
-          <View style={styles.logoWrap}>
-            <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.logoText, { color: colors.text }]}>Thinker AI</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={handleNewChat}
-            activeOpacity={0.7}
-            hitSlop={8}
-          >
-            <Feather name="edit" size={20} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
         {/* Hero */}
         <View style={styles.hero}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>
@@ -370,11 +381,18 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 16 },
-  header: {
+  fixedHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   iconBtn: {
     width: 44,

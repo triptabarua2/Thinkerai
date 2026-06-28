@@ -705,7 +705,7 @@ export default function ChatScreen() {
           {
             backgroundColor: colors.surface,
             borderBottomColor: colors.border,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0),
+            paddingTop: insets.top,
           },
         ]}
       >
