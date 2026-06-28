@@ -96,7 +96,7 @@ export function AgentPanel({ agentType, isStreaming, onAgentChange }: Props) {
           activeOpacity={1}
           onPress={() => setShowPicker(false)}
         />
-        <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: insets.bottom + 16 }]}>
           <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
           <Text style={[styles.sheetTitle, { color: colors.text }]}>Switch Agent</Text>
           <Text style={[styles.sheetSub, { color: colors.textTertiary }]}>
@@ -203,7 +203,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     paddingTop: 12,
     maxHeight: "78%",
-    overflow: "hidden",
   },
   sheetHandle: {
     width: 36,
