@@ -45,12 +45,12 @@ export function SplashAnimation({ onFinish }: Props) {
       >
         <AnimatedPath
           d="M 50 5 L 65 25 L 80 25 L 95 45 L 65 45 L 65 75 L 50 95 L 35 75 L 35 45 L 5 45 L 20 25 L 35 25 Z"
-          stroke="#FFFFFF"
+          stroke="#0B6E69"
           strokeWidth={6}
           strokeLinejoin="round"
           strokeDasharray={400}
           strokeDashoffset={dashOffset}
-          fill="#FFFFFF"
+          fill="#0B6E69"
           fillOpacity={fillOpacity}
         />
       </Svg>
