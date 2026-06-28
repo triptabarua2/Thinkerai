@@ -57,8 +57,8 @@ export function SplashAnimation({ onFinish }: Props) {
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 100 100"
-          width="180"
-          height="180"
+          width="90"
+          height="90"
         >
           <style>{`
             .apex-path {
@@ -88,7 +88,7 @@ export function SplashAnimation({ onFinish }: Props) {
 
   return (
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
-      <Svg width={180} height={180} viewBox="0 0 100 100">
+      <Svg width={90} height={90} viewBox="0 0 100 100">
         <AnimatedPath
           d="M 50 5 L 65 25 L 80 25 L 95 45 L 65 45 L 65 75 L 50 95 L 35 75 L 35 45 L 5 45 L 20 25 L 35 25 Z"
           stroke="#0B6E69"
@@ -107,7 +107,7 @@ export function SplashAnimation({ onFinish }: Props) {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#0B1220",
+    backgroundColor: "#F0FAFA",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 999,
