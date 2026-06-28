@@ -190,13 +190,13 @@ function HomeChatBar({
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
-  const expandAnim = useRef(new Animated.Value(0)).current;
+  const profileAnim = useRef(new Animated.Value(1)).current;
   const canSend = text.trim().length > 0;
 
-  function animateTo(val: number) {
-    Animated.timing(expandAnim, {
+  function animateProfile(val: number) {
+    Animated.timing(profileAnim, {
       toValue: val,
-      duration: 220,
+      duration: 200,
       easing: Easing.out(Easing.ease),
       useNativeDriver: false,
     }).start();
@@ -204,55 +204,37 @@ function HomeChatBar({
 
   function handleFocus() {
     setFocused(true);
-    animateTo(1);
+    animateProfile(0);
   }
 
   function handleBlur() {
-    if (!text.trim()) {
-      setFocused(false);
-      animateTo(0);
-    }
+    setFocused(false);
+    animateProfile(1);
   }
 
   function handleSend() {
     if (!canSend) return;
     const msg = text.trim();
     setText("");
-    setFocused(false);
-    animateTo(0);
     onSend(msg);
   }
 
   const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
-
-  const inputMaxHeight = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [48, 130],
-  });
-
-  const borderRadius = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [999, 20],
-  });
-
   const borderColor = focused ? colors.primary + "80" : colors.border;
 
-  const profileOpacity = expandAnim.interpolate({
+  const profileOpacity = profileAnim;
+  const profileWidth = profileAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 0],
+    outputRange: [0, 44],
   });
-  const profileWidth = expandAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [44, 0, 0],
-  });
-  const profileMargin = expandAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [10, 0, 0],
+  const profileMargin = profileAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 10],
   });
 
   return (
     <View style={[barStyles.wrap, { paddingBottom: bottomPad + 12 }]}>
-      {/* Profile button — visible normally, animates away on input focus */}
+      {/* Profile icon — visible by default, slides away on focus */}
       <Animated.View
         style={{
           width: profileWidth,
@@ -270,15 +252,14 @@ function HomeChatBar({
         </TouchableOpacity>
       </Animated.View>
 
-      <Animated.View
+      {/* Message box — always large */}
+      <View
         style={[
           barStyles.inputWrap,
           {
             backgroundColor: colors.card,
             borderColor,
             borderWidth: 1.5,
-            borderRadius,
-            maxHeight: inputMaxHeight,
           },
         ]}
       >
@@ -305,7 +286,7 @@ function HomeChatBar({
             <Feather name="arrow-up" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         )}
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -332,17 +313,20 @@ const barStyles = StyleSheet.create({
     marginBottom: 2,
   },
   inputWrap: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
+    minHeight: 52,
+    maxHeight: 130,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
-    overflow: "hidden",
   },
   input: {
     flex: 1,
@@ -350,6 +334,7 @@ const barStyles = StyleSheet.create({
     lineHeight: 22,
     paddingTop: 2,
     paddingBottom: 2,
+    minHeight: 32,
   },
   sendBtn: {
     width: 34,
