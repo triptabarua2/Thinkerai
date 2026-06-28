@@ -232,7 +232,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: { padding: 6 },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   topTitle: { fontSize: 17, fontWeight: "600" as const, flex: 1, textAlign: "center" },
   identitySection: {
     alignItems: "center",

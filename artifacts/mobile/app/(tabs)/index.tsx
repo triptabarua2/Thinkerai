@@ -44,8 +44,7 @@ const ONBOARDING_KEY = "@thinkai_onboarded_v1";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = (screenWidth - 32 - 20) / 3;
+  const { width: W } = useWindowDimensions();
   const {
     conversations,
     createConversation,
@@ -81,16 +80,22 @@ export default function HomeScreen() {
     router.push(`/chat/${id}?q=${encodeURIComponent(text.trim())}` as any);
   }
 
+  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+
+  // 2 columns on narrow (<420), 3 on wider
+  const cols = W < 420 ? 2 : 3;
+  const gap = 10;
+  const hPad = 16;
+  const cardW = (W - hPad * 2 - gap * (cols - 1)) / cols;
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          {
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 8,
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 110,
-          },
+          { paddingTop: topPad + 8, paddingBottom: botPad + 140 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -101,8 +106,9 @@ export default function HomeScreen() {
             style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => setSidebarOpen(true)}
             activeOpacity={0.7}
+            hitSlop={8}
           >
-            <Feather name="menu" size={18} color={colors.text} />
+            <Feather name="menu" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <View style={styles.logoWrap}>
@@ -114,8 +120,9 @@ export default function HomeScreen() {
             style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={handleNewChat}
             activeOpacity={0.7}
+            hitSlop={8}
           >
-            <Feather name="edit" size={18} color={colors.text} />
+            <Feather name="edit" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -131,7 +138,7 @@ export default function HomeScreen() {
 
         {/* Quick Actions */}
         <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>QUICK ACTIONS</Text>
-        <View style={styles.grid}>
+        <View style={[styles.grid, { gap }]}>
           {QUICK_ACTIONS.map((action) => {
             const agent = AGENTS[action.agentType];
             return (
@@ -139,15 +146,13 @@ export default function HomeScreen() {
                 key={action.id}
                 style={[
                   styles.actionCard,
-                  { width: cardWidth, backgroundColor: colors.card, borderColor: colors.border },
+                  { width: cardW, backgroundColor: colors.card, borderColor: colors.border },
                 ]}
                 onPress={() => handleQuickAction(action.agentType)}
                 activeOpacity={0.7}
               >
-                <View
-                  style={[styles.actionIcon, { backgroundColor: agent.color + "22" }]}
-                >
-                  <Feather name={action.icon as any} size={18} color={agent.color} />
+                <View style={[styles.actionIcon, { backgroundColor: agent.color + "22" }]}>
+                  <Feather name={action.icon as any} size={20} color={agent.color} />
                 </View>
                 <Text style={[styles.actionLabel, { color: colors.text }]}>
                   {action.label}
@@ -160,6 +165,35 @@ export default function HomeScreen() {
           })}
         </View>
 
+        {/* Recent chats */}
+        {conversations.length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary, marginTop: 24 }]}>
+              RECENT CHATS
+            </Text>
+            {conversations.slice(0, 5).map((conv) => (
+              <TouchableOpacity
+                key={conv.id}
+                style={[styles.recentRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => router.push(`/chat/${conv.id}` as any)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.recentIcon, { backgroundColor: colors.primary + "18" }]}>
+                  <Feather name="message-square" size={16} color={colors.primary} />
+                </View>
+                <View style={styles.recentText}>
+                  <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={1}>
+                    {conv.title}
+                  </Text>
+                  <Text style={[styles.recentSub, { color: colors.textTertiary }]}>
+                    {conv.messages.length} messages
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </ScrollView>
 
       {/* Bottom Chat Bar */}
@@ -170,7 +204,6 @@ export default function HomeScreen() {
         onProfile={() => setProfileSheetOpen(true)}
       />
 
-      {/* Overlays — rendered last so they sit above all content */}
       <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <ProfileSheet visible={profileSheetOpen} onClose={() => setProfileSheetOpen(false)} />
     </View>
@@ -219,48 +252,40 @@ function HomeChatBar({
     onSend(msg);
   }
 
-  const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
-  const borderColor = focused ? colors.primary + "80" : colors.border;
+  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const borderColor = focused ? colors.primary + "90" : colors.border;
 
   const profileOpacity = profileAnim;
-  const profileWidth = profileAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 44],
-  });
-  const profileMargin = profileAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 10],
-  });
+  const profileWidth = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 44] });
+  const profileMargin = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] });
 
   return (
-    <View style={[barStyles.wrap, { paddingBottom: bottomPad + 12 }]}>
-      {/* Profile icon — visible by default, slides away on focus */}
-      <Animated.View
-        style={{
-          width: profileWidth,
-          opacity: profileOpacity,
-          marginRight: profileMargin,
-          overflow: "hidden",
-        }}
-      >
+    <View
+      style={[
+        barStyles.wrap,
+        {
+          paddingBottom: botPad + 12,
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
+        },
+      ]}
+    >
+      {/* Profile icon — fades/slides away on focus */}
+      <Animated.View style={{ width: profileWidth, opacity: profileOpacity, marginRight: profileMargin, overflow: "hidden" }}>
         <TouchableOpacity
-          style={[barStyles.profileBtn, { backgroundColor: colors.card }]}
+          style={[barStyles.profileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={onProfile}
           activeOpacity={0.75}
         >
-          <Feather name="user" size={18} color={colors.textSecondary} />
+          <Feather name="user" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Message box — always large */}
+      {/* Message box — always expanded */}
       <View
         style={[
           barStyles.inputWrap,
-          {
-            backgroundColor: colors.card,
-            borderColor,
-            borderWidth: 1.5,
-          },
+          { backgroundColor: colors.card, borderColor, borderWidth: 1.5 },
         ]}
       >
         <TextInput
@@ -283,7 +308,7 @@ function HomeChatBar({
             onPress={handleSend}
             activeOpacity={0.8}
           >
-            <Feather name="arrow-up" size={16} color="#FFFFFF" />
+            <Feather name="arrow-up" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         )}
       </View>
@@ -300,17 +325,17 @@ const barStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
-    paddingTop: 10,
-    gap: 10,
-    backgroundColor: "transparent",
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   profileBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   inputWrap: {
     flex: 1,
@@ -322,11 +347,6 @@ const barStyles = StyleSheet.create({
     gap: 8,
     minHeight: 52,
     maxHeight: 130,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
   },
   input: {
     flex: 1,
@@ -337,35 +357,29 @@ const barStyles = StyleSheet.create({
     minHeight: 32,
   },
   sendBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 1,
+    marginBottom: 2,
   },
 });
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 16,
-  },
+  root: { flex: 1 },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 16 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 28,
+    marginBottom: 24,
   },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -385,14 +399,12 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
     letterSpacing: -0.3,
   },
-  hero: {
-    marginBottom: 32,
-  },
+  hero: { marginBottom: 28 },
   heroTitle: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: "700" as const,
-    letterSpacing: -0.8,
-    lineHeight: 38,
+    letterSpacing: -1,
+    lineHeight: 40,
     marginBottom: 8,
   },
   heroSub: {
@@ -401,34 +413,60 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: "600" as const,
-    letterSpacing: 1,
+    fontWeight: "700" as const,
+    letterSpacing: 1.2,
     marginBottom: 10,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 28,
+    marginBottom: 8,
   },
   actionCard: {
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1,
-    gap: 6,
+    gap: 8,
+    marginBottom: 10,
   },
   actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   actionLabel: {
     fontSize: 15,
-    fontWeight: "600" as const,
+    fontWeight: "700" as const,
   },
   actionDesc: {
     fontSize: 12,
+    lineHeight: 16,
+  },
+  recentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  recentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentText: { flex: 1 },
+  recentTitle: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+  },
+  recentSub: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });
