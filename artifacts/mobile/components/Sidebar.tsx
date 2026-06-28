@@ -384,7 +384,7 @@ export function Sidebar({ visible, onClose }: Props) {
         {/* Footer links */}
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
           {[
-            { icon: "folder", label: "Projects" },
+            { icon: "folder", label: "Projects", onPress: () => { onClose(); router.push("/projects" as any); } },
             { icon: "zap", label: "Workflows" },
             { icon: "settings", label: "Settings", onPress: () => { onClose(); router.push("/settings" as any); } },
           ].map((item) => (

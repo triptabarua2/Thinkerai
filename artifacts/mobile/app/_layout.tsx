@@ -30,6 +30,7 @@ function RootLayoutNav() {
       <Stack.Screen name="settings" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="profile" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="voice" options={{ headerShown: false, animation: "fade" }} />
+      <Stack.Screen name="projects" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
 }
