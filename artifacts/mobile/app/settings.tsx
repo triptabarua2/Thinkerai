@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -126,29 +127,89 @@ function ActionRow({
   );
 }
 
+function showPicker(title: string, options: string[], current: string, onSelect: (v: string) => void) {
+  Alert.alert(
+    title,
+    `Current: ${current}`,
+    [
+      ...options.map((opt) => ({
+        text: opt === current ? `✓ ${opt}` : opt,
+        onPress: () => onSelect(opt),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]
+  );
+}
+
+function comingSoon(feature: string) {
+  Alert.alert("Coming Soon", `${feature} will be available in a future update.`, [{ text: "OK" }]);
+}
+
 function GeneralTab() {
+  const [appLang, setAppLang] = useState("Auto-detect");
+  const [responseLang, setResponseLang] = useState("User's language");
+  const [commentLang, setCommentLang] = useState("English");
   const [thinkingLevel, setThinkingLevel] = useState("Auto");
+  const [domain, setDomain] = useState("None");
   const [theme, setTheme] = useState("System");
   const [fontSize, setFontSize] = useState("Medium");
+  const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
+  const [timezone, setTimezone] = useState("Auto");
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <SectionHeader title="LANGUAGE" />
-      <SelectRow label="App language" value="Auto-detect" onPress={() => {}} />
-      <SelectRow label="Response language" value="User's language" onPress={() => {}} />
-      <SelectRow label="Code comment language" value="English" onPress={() => {}} />
+      <SelectRow
+        label="App language"
+        value={appLang}
+        onPress={() => showPicker("App Language", ["Auto-detect", "English", "বাংলা", "Arabic", "Chinese", "Hindi", "Spanish", "French"], appLang, setAppLang)}
+      />
+      <SelectRow
+        label="Response language"
+        value={responseLang}
+        onPress={() => showPicker("Response Language", ["User's language", "English", "Auto"], responseLang, setResponseLang)}
+      />
+      <SelectRow
+        label="Code comment language"
+        value={commentLang}
+        onPress={() => showPicker("Code Comment Language", ["English", "Auto-detect", "Match response language"], commentLang, setCommentLang)}
+      />
 
       <SectionHeader title="DEFAULTS" />
-      <SelectRow label="Default Thinking Level" value={thinkingLevel} onPress={() => {}} />
-      <SelectRow label="Default domain" value="None" onPress={() => {}} />
+      <SelectRow
+        label="Default Thinking Level"
+        value={thinkingLevel}
+        onPress={() => showPicker("Default Thinking Level", ["Auto", "Low (1 credit)", "Medium (9 credits)", "High (66 credits)", "Consensus (75 credits)"], thinkingLevel, setThinkingLevel)}
+      />
+      <SelectRow
+        label="Default domain"
+        value={domain}
+        onPress={() => showPicker("Default Domain", ["None", "General", "Coding", "Business", "Research", "Creative", "Education"], domain, setDomain)}
+      />
 
       <SectionHeader title="APPEARANCE" />
-      <SelectRow label="App theme" value={theme} onPress={() => {}} />
-      <SelectRow label="Font size" value={fontSize} onPress={() => {}} />
+      <SelectRow
+        label="App theme"
+        value={theme}
+        onPress={() => showPicker("App Theme", ["System", "Light", "Dark"], theme, setTheme)}
+      />
+      <SelectRow
+        label="Font size"
+        value={fontSize}
+        onPress={() => showPicker("Font Size", ["Small", "Medium", "Large"], fontSize, setFontSize)}
+      />
 
       <SectionHeader title="REGIONAL" />
-      <SelectRow label="Date & time format" value="DD/MM/YYYY" onPress={() => {}} />
-      <SelectRow label="Timezone" value="Auto" onPress={() => {}} />
+      <SelectRow
+        label="Date & time format"
+        value={dateFormat}
+        onPress={() => showPicker("Date & Time Format", ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"], dateFormat, setDateFormat)}
+      />
+      <SelectRow
+        label="Timezone"
+        value={timezone}
+        onPress={() => showPicker("Timezone", ["Auto", "UTC", "GMT+6 (Dhaka)", "GMT+5:30 (Kolkata)", "GMT-5 (New York)", "GMT+1 (London)"], timezone, setTimezone)}
+      />
     </ScrollView>
   );
 }
@@ -161,6 +222,8 @@ function PipelineTab() {
   const [sigQuestion, setSigQuestion] = useState(true);
   const [founderModeAuto, setFounderModeAuto] = useState(true);
   const [multiLang, setMultiLang] = useState(true);
+  const [strategyAgent, setStrategyAgent] = useState(true);
+  const [goalDepth, setGoalDepth] = useState("Auto");
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -196,14 +259,18 @@ function PipelineTab() {
         value={sigQuestion}
         onChange={setSigQuestion}
       />
-      <SelectRow label="Goal Discovery depth" value="Auto" onPress={() => {}} />
+      <SelectRow
+        label="Goal Discovery depth"
+        value={goalDepth}
+        onPress={() => showPicker("Goal Discovery Depth", ["Auto", "Shallow (1 round)", "Standard (3 rounds)", "Deep (5 rounds)"], goalDepth, setGoalDepth)}
+      />
 
       <SectionHeader title="AGENTS" />
       <ToggleRow
         label="Strategy Agent"
         sub="Enables business & product thinking before planning"
-        value={true}
-        onChange={() => {}}
+        value={strategyAgent}
+        onChange={setStrategyAgent}
       />
       <ToggleRow
         label="Founder Mode auto-detect"
@@ -225,6 +292,22 @@ function MemoryTab() {
   const [projectMemory, setProjectMemory] = useState(true);
   const [longTermMemory, setLongTermMemory] = useState(true);
   const [decisionMemory, setDecisionMemory] = useState(true);
+  const [retention, setRetention] = useState("Forever");
+
+  function confirmClear(type: string) {
+    Alert.alert(
+      `Clear ${type}?`,
+      `This will permanently delete all ${type.toLowerCase()}. This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: () => Alert.alert("Cleared", `${type} has been cleared.`, [{ text: "OK" }]),
+        },
+      ]
+    );
+  }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -249,13 +332,17 @@ function MemoryTab() {
       />
 
       <SectionHeader title="RETENTION" />
-      <SelectRow label="Memory retention period" value="Forever" onPress={() => {}} />
+      <SelectRow
+        label="Memory retention period"
+        value={retention}
+        onPress={() => showPicker("Memory Retention", ["Forever", "1 year", "6 months", "3 months", "1 month"], retention, setRetention)}
+      />
 
       <SectionHeader title="MANAGE" />
-      <ActionRow label="Clear all Project Memory" danger onPress={() => {}} />
-      <ActionRow label="Clear all Long-term Memory" danger onPress={() => {}} />
-      <ActionRow label="Clear all Decision Memory" danger onPress={() => {}} />
-      <ActionRow label="Export all memory (JSON)" onPress={() => {}} />
+      <ActionRow label="Clear all Project Memory" danger onPress={() => confirmClear("Project Memory")} />
+      <ActionRow label="Clear all Long-term Memory" danger onPress={() => confirmClear("Long-term Memory")} />
+      <ActionRow label="Clear all Decision Memory" danger onPress={() => confirmClear("Decision Memory")} />
+      <ActionRow label="Export all memory (JSON)" onPress={() => comingSoon("Memory export")} />
     </ScrollView>
   );
 }
@@ -263,14 +350,35 @@ function MemoryTab() {
 function FilesTab() {
   const [autoScan, setAutoScan] = useState(true);
   const [warnLLM, setWarnLLM] = useState(false);
+  const [onCode, setOnCode] = useState("Auto-review");
+  const [onDoc, setOnDoc] = useState("Summarise");
+  const [onImage, setOnImage] = useState("Analyse");
+  const [onZip, setOnZip] = useState("Map & ask");
+  const [maxSize, setMaxSize] = useState("Platform default");
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <SectionHeader title="DEFAULT ACTIONS" />
-      <SelectRow label="On code upload" value="Auto-review" onPress={() => {}} />
-      <SelectRow label="On document upload" value="Summarise" onPress={() => {}} />
-      <SelectRow label="On image upload" value="Analyse" onPress={() => {}} />
-      <SelectRow label="On ZIP upload" value="Map & ask" onPress={() => {}} />
+      <SelectRow
+        label="On code upload"
+        value={onCode}
+        onPress={() => showPicker("On Code Upload", ["Auto-review", "Ask me", "Summarise", "Run security scan", "Do nothing"], onCode, setOnCode)}
+      />
+      <SelectRow
+        label="On document upload"
+        value={onDoc}
+        onPress={() => showPicker("On Document Upload", ["Summarise", "Ask me", "Extract key points", "Do nothing"], onDoc, setOnDoc)}
+      />
+      <SelectRow
+        label="On image upload"
+        value={onImage}
+        onPress={() => showPicker("On Image Upload", ["Analyse", "Ask me", "Describe", "Do nothing"], onImage, setOnImage)}
+      />
+      <SelectRow
+        label="On ZIP upload"
+        value={onZip}
+        onPress={() => showPicker("On ZIP Upload", ["Map & ask", "Ask me", "Extract & summarise", "Do nothing"], onZip, setOnZip)}
+      />
 
       <SectionHeader title="SECURITY" />
       <ToggleRow
@@ -286,7 +394,11 @@ function FilesTab() {
       />
 
       <SectionHeader title="LIMITS" />
-      <SelectRow label="Max file size limit" value="Platform default" onPress={() => {}} />
+      <SelectRow
+        label="Max file size limit"
+        value={maxSize}
+        onPress={() => showPicker("Max File Size", ["Platform default", "5 MB", "10 MB", "25 MB", "50 MB"], maxSize, setMaxSize)}
+      />
     </ScrollView>
   );
 }
@@ -295,6 +407,22 @@ function CreditsTab() {
   const colors = useColors();
   const [autoTopUp, setAutoTopUp] = useState(false);
   const [lowAlert, setLowAlert] = useState(true);
+  const [alertThreshold, setAlertThreshold] = useState("20 credits");
+
+  function confirmCancelSubscription() {
+    Alert.alert(
+      "Cancel Subscription?",
+      "You will lose access to Pro features at the end of your billing period. Credits will not be refunded.",
+      [
+        { text: "Keep Subscription", style: "cancel" },
+        {
+          text: "Cancel Subscription",
+          style: "destructive",
+          onPress: () => comingSoon("Subscription cancellation"),
+        },
+      ]
+    );
+  }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -306,18 +434,22 @@ function CreditsTab() {
       </View>
 
       <SectionHeader title="MANAGE CREDITS" />
-      <ActionRow label="Buy extra credits" onPress={() => {}} />
-      <ActionRow label="Upgrade plan" onPress={() => {}} />
-      <ActionRow label="View billing history" onPress={() => {}} />
+      <ActionRow label="Buy extra credits" onPress={() => comingSoon("Credit purchase")} />
+      <ActionRow label="Upgrade plan" onPress={() => router.push("/onboarding" as any)} />
+      <ActionRow label="View billing history" onPress={() => comingSoon("Billing history")} />
 
       <SectionHeader title="ALERTS & AUTO TOP-UP" />
       <ToggleRow
         label="Low balance alert"
-        sub="Warn me when balance falls below 20 credits"
+        sub="Warn me when balance falls below threshold"
         value={lowAlert}
         onChange={setLowAlert}
       />
-      <SelectRow label="Alert threshold" value="20 credits" onPress={() => {}} />
+      <SelectRow
+        label="Alert threshold"
+        value={alertThreshold}
+        onPress={() => showPicker("Alert Threshold", ["10 credits", "20 credits", "50 credits", "100 credits"], alertThreshold, setAlertThreshold)}
+      />
       <ToggleRow
         label="Auto top-up"
         sub="Buy credits automatically when balance is low"
@@ -326,9 +458,9 @@ function CreditsTab() {
       />
 
       <SectionHeader title="BILLING" />
-      <ActionRow label="Download latest invoice" onPress={() => {}} />
-      <ActionRow label="Update payment method" onPress={() => {}} />
-      <ActionRow label="Cancel subscription" danger onPress={() => {}} />
+      <ActionRow label="Download latest invoice" onPress={() => comingSoon("Invoice download")} />
+      <ActionRow label="Update payment method" onPress={() => comingSoon("Payment method update")} />
+      <ActionRow label="Cancel subscription" danger onPress={confirmCancelSubscription} />
     </ScrollView>
   );
 }
@@ -394,17 +526,36 @@ function PrivacyTab() {
   const [twoFA, setTwoFA] = useState(false);
   const [analytics, setAnalytics] = useState(true);
 
+  function confirmDeleteAccount() {
+    Alert.alert(
+      "Delete Account?",
+      "This will permanently delete your account, all conversations, credits, and data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: () => comingSoon("Account deletion"),
+        },
+      ]
+    );
+  }
+
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <SectionHeader title="ACCOUNT SECURITY" />
-      <ActionRow label="Change password" onPress={() => {}} />
+      <ActionRow label="Change password" onPress={() => comingSoon("Password change")} />
       <ToggleRow
         label="Two-factor authentication"
         sub="TOTP app or SMS"
         value={twoFA}
         onChange={setTwoFA}
       />
-      <ActionRow label="Active sessions" sub="View and revoke any active login" onPress={() => {}} />
+      <ActionRow
+        label="Active sessions"
+        sub="View and revoke any active login"
+        onPress={() => comingSoon("Session management")}
+      />
 
       <SectionHeader title="DATA" />
       <ToggleRow
@@ -413,11 +564,14 @@ function PrivacyTab() {
         value={analytics}
         onChange={setAnalytics}
       />
-      <ActionRow label="View data processing information" onPress={() => {}} />
-      <ActionRow label="Export all account data (JSON)" onPress={() => {}} />
+      <ActionRow label="View data processing information" onPress={() => comingSoon("Data processing info")} />
+      <ActionRow
+        label="Export all account data (JSON)"
+        onPress={() => Alert.alert("Export Data", "Your data export will be prepared and emailed to you within 24 hours.", [{ text: "Request Export" }, { text: "Cancel", style: "cancel" }])}
+      />
 
       <SectionHeader title="ACCOUNT" />
-      <ActionRow label="Delete account" danger sub="This action cannot be undone" onPress={() => {}} />
+      <ActionRow label="Delete account" danger sub="This action cannot be undone" onPress={confirmDeleteAccount} />
     </ScrollView>
   );
 }
@@ -434,18 +588,18 @@ function AdvancedTab() {
       </View>
 
       <SectionHeader title="API ACCESS" />
-      <ActionRow label="API key management" sub="Create and revoke API keys" onPress={() => {}} />
-      <ActionRow label="Webhook URL" sub="Receive build-complete notifications" onPress={() => {}} />
-      <ActionRow label="Credit usage API" sub="Programmatic access to usage data" onPress={() => {}} />
+      <ActionRow label="API key management" sub="Create and revoke API keys" onPress={() => comingSoon("API key management")} />
+      <ActionRow label="Webhook URL" sub="Receive build-complete notifications" onPress={() => comingSoon("Webhook configuration")} />
+      <ActionRow label="Credit usage API" sub="Programmatic access to usage data" onPress={() => comingSoon("Credit usage API")} />
 
       <SectionHeader title="PIPELINE OBSERVABILITY" />
-      <ActionRow label="Pipeline log access" sub="Full routing_history and failover_log" onPress={() => {}} />
-      <ActionRow label="Pool health dashboard" sub="Active model status per agent" onPress={() => {}} />
-      <ActionRow label="Export pipeline log (JSON)" onPress={() => {}} />
+      <ActionRow label="Pipeline log access" sub="Full routing_history and failover_log" onPress={() => comingSoon("Pipeline logs")} />
+      <ActionRow label="Pool health dashboard" sub="Active model status per agent" onPress={() => comingSoon("Pool health dashboard")} />
+      <ActionRow label="Export pipeline log (JSON)" onPress={() => comingSoon("Pipeline log export")} />
 
       <SectionHeader title="CUSTOMISATION" />
-      <ActionRow label="Import Decision Memory rules (JSON)" onPress={() => {}} />
-      <ActionRow label="Priority Queue position" onPress={() => {}} />
+      <ActionRow label="Import Decision Memory rules (JSON)" onPress={() => comingSoon("Decision Memory import")} />
+      <ActionRow label="Priority Queue position" onPress={() => comingSoon("Priority Queue")} />
     </ScrollView>
   );
 }

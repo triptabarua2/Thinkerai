@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -56,10 +57,11 @@ export function Sidebar({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const PANEL_HEIGHT = screenHeight;
-  const { conversations, createConversation, setSidebarOpen, deleteConversation, pinConversation } = useApp();
+  const { conversations, createConversation, setSidebarOpen, deleteConversation, pinConversation, updateConversation } = useApp();
 
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [activeDomain, setActiveDomain] = useState<Domain>("general");
+  const [renameModal, setRenameModal] = useState<{ conv: Conversation; text: string } | null>(null);
   const menuAnim = useRef(new Animated.Value(0)).current;
 
   const translateY = useRef(new Animated.Value(-screenHeight)).current;
@@ -170,6 +172,19 @@ export function Sidebar({ visible, onClose }: Props) {
     await pinConversation(contextMenu.conv.id, !isPinned);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     closeContextMenu();
+  }
+
+  function handleRename() {
+    if (!contextMenu) return;
+    setRenameModal({ conv: contextMenu.conv, text: contextMenu.conv.title });
+    closeContextMenu();
+  }
+
+  async function submitRename() {
+    if (!renameModal || !renameModal.text.trim()) return;
+    await updateConversation(renameModal.conv.id, { title: renameModal.text.trim() });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setRenameModal(null);
   }
 
   function handleDelete() {
@@ -385,14 +400,14 @@ export function Sidebar({ visible, onClose }: Props) {
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
           {[
             { icon: "folder", label: "Projects", onPress: () => { onClose(); router.push("/projects" as any); } },
-            { icon: "zap", label: "Workflows" },
+            { icon: "zap", label: "Workflows", onPress: () => { Alert.alert("Workflows", "Workflow automation is coming soon. Build and schedule multi-step tasks automatically.", [{ text: "OK" }]); } },
             { icon: "settings", label: "Settings", onPress: () => { onClose(); router.push("/settings" as any); } },
           ].map((item) => (
             <TouchableOpacity
               key={item.label}
               style={[styles.footerItem, { borderColor: colors.border, backgroundColor: colors.card }]}
               activeOpacity={0.7}
-              onPress={(item as any).onPress}
+              onPress={item.onPress}
             >
               <Feather name={item.icon as any} size={15} color={colors.textSecondary} />
               <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>
@@ -402,6 +417,51 @@ export function Sidebar({ visible, onClose }: Props) {
           ))}
         </View>
       </Animated.View>
+
+      {/* Rename Modal */}
+      <Modal
+        visible={!!renameModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setRenameModal(null)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setRenameModal(null)}>
+          <Pressable
+            style={[styles.renameSheet, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => {}}
+          >
+            <Text style={[styles.renameTitle, { color: colors.text }]}>Rename Chat</Text>
+            <TextInput
+              style={[styles.renameInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+              value={renameModal?.text ?? ""}
+              onChangeText={(t) => setRenameModal((prev) => prev ? { ...prev, text: t } : null)}
+              autoFocus
+              maxLength={80}
+              placeholder="Chat name"
+              placeholderTextColor={colors.textTertiary}
+              onSubmitEditing={submitRename}
+              returnKeyType="done"
+            />
+            <View style={styles.renameBtns}>
+              <TouchableOpacity
+                style={[styles.renameBtn, { borderColor: colors.border }]}
+                onPress={() => setRenameModal(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.renameBtnLabel, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.renameBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                onPress={submitRename}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.renameBtnLabel, { color: "#fff" }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Context Menu Modal */}
       <Modal
@@ -449,10 +509,10 @@ export function Sidebar({ visible, onClose }: Props) {
               <Feather name="chevron-right" size={14} color={colors.textTertiary} />
             </TouchableOpacity>
 
-            {/* Rename (placeholder) */}
+            {/* Rename */}
             <TouchableOpacity
               style={[styles.menuItem, { borderBottomColor: colors.border }]}
-              onPress={closeContextMenu}
+              onPress={handleRename}
               activeOpacity={0.7}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: colors.textSecondary + "18" }]}>
@@ -730,6 +790,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelLabel: {
+    fontSize: 15,
+    fontWeight: "600" as const,
+  },
+  renameSheet: {
+    marginHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  renameTitle: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    letterSpacing: -0.3,
+  },
+  renameInput: {
+    fontSize: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  renameBtns: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  renameBtn: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  renameBtnLabel: {
     fontSize: 15,
     fontWeight: "600" as const,
   },
