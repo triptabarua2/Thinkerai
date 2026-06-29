@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { useApp } from "@/context/AppContext";
 import { AGENT_LIST, type AgentType } from "@/lib/agents";
 import { AGENTS } from "@/lib/agents";
@@ -57,6 +58,7 @@ export default function HomeScreen() {
   } = useApp();
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("coding");
   const [agentPickerOpen, setAgentPickerOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"agent" | "upgrade">("agent");
 
   useEffect(() => {
@@ -216,7 +218,7 @@ export default function HomeScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setActiveTab("upgrade");
-              router.push("/settings" as any);
+              setUpgradeModalOpen(true);
             }}
             activeOpacity={0.8}
           >
@@ -336,6 +338,13 @@ export default function HomeScreen() {
 
       <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <ProfileSheet visible={profileSheetOpen} onClose={() => setProfileSheetOpen(false)} />
+      <UpgradeModal
+        visible={upgradeModalOpen}
+        onClose={() => {
+          setUpgradeModalOpen(false);
+          setActiveTab("agent");
+        }}
+      />
 
       {/* Agent Picker Modal */}
       <Modal
