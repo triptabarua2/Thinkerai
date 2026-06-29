@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BlurView } from "expo-blur";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { useApp } from "@/context/AppContext";
@@ -100,12 +101,14 @@ export default function HomeScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       {/* Fixed Header — pinned to the very top */}
-      <View
+      <BlurView
+        intensity={60}
+        tint={colors.background === "#F0FAFA" ? "light" : "dark"}
         style={[
           styles.fixedHeader,
           {
             paddingTop: HEADER_TOP,
-            backgroundColor: colors.background,
+            backgroundColor: colors.background + "CC",
           },
         ]}
       >
@@ -157,7 +160,7 @@ export default function HomeScreen() {
         >
           <Feather name="edit" size={20} color={colors.text} />
         </TouchableOpacity>
-      </View>
+      </BlurView>
 
       <ScrollView
         style={styles.scroll}
