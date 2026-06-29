@@ -8,6 +8,7 @@ import {
   Easing,
   FlatList,
   Modal,
+  PanResponder,
   Platform,
   StyleSheet,
   Text,
@@ -94,35 +95,78 @@ export default function HomeScreen() {
   const [carouselBase, setCarouselBase] = useState(0);
   const animating = useRef(false);
 
-  // Derived animations from single slideAnim
+  // 5-card strip: [base-1, base, base+1(CENTER), base+2, base+3]
+  // Strip rests at -(cardW+cGap) so base-1 is off-screen left, base+3 off-screen right
+  // slideAnim: 0=rest, +1=forward(left), -1=backward(right)
   const stripX = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -(cardW + cGap)],
+    inputRange: [-1, 0, 1],
+    outputRange: [0, -(cardW + cGap), -2 * (cardW + cGap)],
   });
-  const exitOpacity = slideAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] });
-  const enterOpacity = slideAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] });
-  const centerToSideScale = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.85] });
-  const sideToCenter = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+  // Per-position (0–4) scale and opacity for slideAnim ∈ [-1, 0, 1]
+  const scaleByPos = [
+    slideAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.85, 0.85, 0.85] }),
+    slideAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [1,    0.85, 0.85] }),
+    slideAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.85, 1,    0.85] }),
+    slideAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.85, 0.85, 1   ] }),
+    slideAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.85, 0.85, 0.85] }),
+  ];
+  const opacityByPos = [
+    slideAnim.interpolate({ inputRange: [-1, -0.3, 0, 1], outputRange: [1, 0, 0, 0], extrapolate: "clamp" }),
+    slideAnim.interpolate({ inputRange: [-1,  0,   0.4, 1], outputRange: [1, 1, 0, 0], extrapolate: "clamp" }),
+    slideAnim.interpolate({ inputRange: [-1,  0,   1  ], outputRange: [1, 1, 1], extrapolate: "clamp" }),
+    slideAnim.interpolate({ inputRange: [-1, -0.4, 0,  1], outputRange: [0, 0, 1, 1], extrapolate: "clamp" }),
+    slideAnim.interpolate({ inputRange: [-1,  0,   0.3, 1], outputRange: [0, 0, 0, 1], extrapolate: "clamp" }),
+  ];
 
-  function advanceCarousel() {
+  const autoTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function runSlide(direction: 1 | -1) {
     if (animating.current) return;
     animating.current = true;
     Animated.timing(slideAnim, {
-      toValue: 1,
-      duration: 600,
+      toValue: direction,
+      duration: 520,
       easing: Easing.inOut(Easing.ease),
       useNativeDriver: false,
     }).start(() => {
       slideAnim.setValue(0);
-      setCarouselBase((prev) => (prev + 1) % QUICK_ACTIONS.length);
+      setCarouselBase((prev) =>
+        (prev + direction + QUICK_ACTIONS.length) % QUICK_ACTIONS.length
+      );
       animating.current = false;
     });
   }
 
+  function advanceCarousel() { runSlide(1); }
+
+  function resetAutoTimer() {
+    if (autoTimer.current) clearInterval(autoTimer.current);
+    autoTimer.current = setInterval(advanceCarousel, 2800);
+  }
+
   useEffect(() => {
-    const t = setInterval(advanceCarousel, 2800);
-    return () => clearInterval(t);
+    autoTimer.current = setInterval(advanceCarousel, 2800);
+    return () => { if (autoTimer.current) clearInterval(autoTimer.current); };
   }, []);
+
+  // Swipe pan responder
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (_, g) => {
+        if (g.dx < -40) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          resetAutoTimer();
+          runSlide(1);
+        } else if (g.dx > 40) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          resetAutoTimer();
+          runSlide(-1);
+        }
+      },
+    })
+  ).current;
 
   // Header sits right at safe-area top
   const HEADER_TOP = insets.top + 12;
@@ -210,39 +254,22 @@ export default function HomeScreen() {
 
         {/* Quick Actions Carousel */}
         <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>QUICK ACTIONS</Text>
-        <View style={{ width: visibleW, overflow: "hidden" }}>
-          <Animated.View
-            style={{
-              flexDirection: "row",
-              gap: cGap,
-              transform: [{ translateX: stripX }],
-            }}
-          >
-            {[0, 1, 2, 3].map((offset) => {
-              const idx = (carouselBase + offset) % QUICK_ACTIONS.length;
+        <View style={{ width: visibleW, overflow: "hidden" }} {...panResponder.panHandlers}>
+          <Animated.View style={{ flexDirection: "row", gap: cGap, transform: [{ translateX: stripX }] }}>
+            {[-1, 0, 1, 2, 3].map((offset, pos) => {
+              const idx = ((carouselBase + offset) % QUICK_ACTIONS.length + QUICK_ACTIONS.length) % QUICK_ACTIONS.length;
               const action = QUICK_ACTIONS[idx];
               const agent = AGENTS[action.agentType];
-
-              // offset 0 = exiting left, offset 1 = left, offset 2 = center (big), offset 3 = entering right
-              const isCenter = offset === 2;
-              const isExit = offset === 0;
-              const isEnter = offset === 3;
-
-              const scale = isCenter
-                ? sideToCenter
-                : offset === 1
-                ? centerToSideScale
-                : 0.85;
-              const opacity = isExit ? exitOpacity : isEnter ? enterOpacity : 1;
+              const isCenter = offset === 1;
 
               return (
                 <Animated.View
-                  key={`${carouselBase}-${offset}`}
+                  key={`${carouselBase}-${pos}`}
                   style={{
                     width: cardW,
-                    opacity,
-                    transform: [{ scale: scale as any }],
-                    alignSelf: isCenter ? "flex-end" : "flex-end",
+                    opacity: opacityByPos[pos],
+                    transform: [{ scale: scaleByPos[pos] as any }],
+                    alignSelf: "flex-end",
                   }}
                 >
                   <TouchableOpacity
@@ -250,56 +277,20 @@ export default function HomeScreen() {
                       styles.carouselCard,
                       {
                         height: isCenter ? 178 : 134,
-                        backgroundColor: isCenter
-                          ? colors.primary
-                          : colors.card,
-                        borderColor: isCenter
-                          ? colors.primary
-                          : colors.border,
+                        backgroundColor: isCenter ? colors.primary : colors.card,
+                        borderColor: isCenter ? colors.primary : colors.border,
                       },
                     ]}
                     onPress={() => handleQuickAction(action.agentType)}
                     activeOpacity={0.75}
                   >
-                    <View
-                      style={[
-                        styles.carouselIcon,
-                        {
-                          backgroundColor: isCenter
-                            ? "rgba(255,255,255,0.18)"
-                            : agent.color + "22",
-                        },
-                      ]}
-                    >
-                      <Feather
-                        name={action.icon as any}
-                        size={isCenter ? 22 : 18}
-                        color={isCenter ? "#fff" : agent.color}
-                      />
+                    <View style={[styles.carouselIcon, { backgroundColor: isCenter ? "rgba(255,255,255,0.18)" : agent.color + "22" }]}>
+                      <Feather name={action.icon as any} size={isCenter ? 22 : 18} color={isCenter ? "#fff" : agent.color} />
                     </View>
-                    <Text
-                      style={[
-                        styles.carouselLabel,
-                        {
-                          color: isCenter ? "#fff" : colors.text,
-                          fontSize: isCenter ? 15 : 13,
-                        },
-                      ]}
-                    >
+                    <Text style={[styles.carouselLabel, { color: isCenter ? "#fff" : colors.text, fontSize: isCenter ? 15 : 13 }]}>
                       {action.label}
                     </Text>
-                    <Text
-                      style={[
-                        styles.carouselDesc,
-                        {
-                          color: isCenter
-                            ? "rgba(255,255,255,0.72)"
-                            : colors.textTertiary,
-                          fontSize: isCenter ? 12 : 10,
-                        },
-                      ]}
-                      numberOfLines={2}
-                    >
+                    <Text style={[styles.carouselDesc, { color: isCenter ? "rgba(255,255,255,0.72)" : colors.textTertiary, fontSize: isCenter ? 12 : 10 }]} numberOfLines={2}>
                       {action.desc}
                     </Text>
                   </TouchableOpacity>
@@ -307,6 +298,31 @@ export default function HomeScreen() {
               );
             })}
           </Animated.View>
+        </View>
+
+        {/* Dot indicators */}
+        <View style={styles.dotsRow}>
+          {QUICK_ACTIONS.map((_, i) => {
+            const centerIdx = ((carouselBase + 1) % QUICK_ACTIONS.length + QUICK_ACTIONS.length) % QUICK_ACTIONS.length;
+            const isActive = i === centerIdx;
+            return (
+              <TouchableOpacity
+                key={i}
+                onPress={() => {
+                  const diff = i - centerIdx;
+                  if (diff === 0) return;
+                  resetAutoTimer();
+                  // advance the right number of steps
+                  const steps = ((diff % QUICK_ACTIONS.length) + QUICK_ACTIONS.length) % QUICK_ACTIONS.length;
+                  const shortSteps = steps <= QUICK_ACTIONS.length / 2 ? steps : steps - QUICK_ACTIONS.length;
+                  runSlide(shortSteps > 0 ? 1 : -1);
+                }}
+                hitSlop={8}
+              >
+                <View style={[styles.dot, { backgroundColor: isActive ? colors.primary : colors.border, width: isActive ? 16 : 6 }]} />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
@@ -659,6 +675,17 @@ const styles = StyleSheet.create({
   },
   carouselDesc: {
     lineHeight: 14,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 14,
+  },
+  dot: {
+    height: 6,
+    borderRadius: 3,
   },
   hero: { marginBottom: 28 },
   heroTitle: {
