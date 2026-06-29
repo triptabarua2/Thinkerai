@@ -7,11 +7,10 @@ import {
   Animated,
   Easing,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   PanResponder,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -177,11 +176,7 @@ export default function HomeScreen() {
   const HEADER_H = HEADER_TOP + 44 + 12;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       {/* Fixed Header — absolute overlay, doesn't affect flex layout */}
       <BlurView
         intensity={60}
@@ -244,14 +239,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </BlurView>
 
-      {/* Scrollable content area — takes all remaining flex space */}
-      <ScrollView
-        style={styles.scrollArea}
-        contentContainerStyle={[styles.content, { paddingTop: HEADER_H + 16 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={false}
-      >
+      <View style={[styles.content, { paddingTop: HEADER_H + 16 }]}>
         {/* Hero */}
         <View style={styles.hero}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>
@@ -333,9 +321,9 @@ export default function HomeScreen() {
             );
           })}
         </View>
-      </ScrollView>
+      </View>
 
-      {/* Bottom Chat Bar — flex child, NOT absolute, so keyboard pushes it up */}
+      {/* Bottom Chat Bar — absolutely pinned, moves up with keyboard */}
       <HomeChatBar
         colors={colors}
         insets={insets}
@@ -412,7 +400,7 @@ export default function HomeScreen() {
           />
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -429,8 +417,43 @@ function HomeChatBar({
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
+  const [kbHeight, setKbHeight] = useState(0);
   const profileAnim = useRef(new Animated.Value(1)).current;
   const canSend = text.trim().length > 0;
+
+  // Track keyboard height — only the bar moves up, content stays fixed
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      // Web: use visualViewport API (works on mobile browsers)
+      if (typeof window === "undefined") return;
+      const vv = (window as any).visualViewport as VisualViewport | undefined;
+      if (!vv) return;
+      const handler = () => {
+        const diff = window.innerHeight - vv.height;
+        setKbHeight(Math.max(0, diff));
+      };
+      vv.addEventListener("resize", handler);
+      vv.addEventListener("scroll", handler);
+      return () => {
+        vv.removeEventListener("resize", handler);
+        vv.removeEventListener("scroll", handler);
+      };
+    } else {
+      // Native: use Keyboard events
+      const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+      const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+      const showSub = Keyboard.addListener(showEvent, (e) => {
+        setKbHeight(e.endCoordinates.height);
+      });
+      const hideSub = Keyboard.addListener(hideEvent, () => {
+        setKbHeight(0);
+      });
+      return () => {
+        showSub.remove();
+        hideSub.remove();
+      };
+    }
+  }, []);
 
   function animateProfile(val: number) {
     Animated.timing(profileAnim, {
@@ -469,6 +492,7 @@ function HomeChatBar({
       style={[
         barStyles.wrap,
         {
+          bottom: kbHeight,
           paddingBottom: insets.bottom + 8,
           backgroundColor: colors.background,
           borderTopColor: colors.border,
@@ -523,6 +547,9 @@ function HomeChatBar({
 
 const barStyles = StyleSheet.create({
   wrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
@@ -569,8 +596,7 @@ const barStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scrollArea: { flex: 1 },
-  content: { paddingHorizontal: 16, flexGrow: 1 },
+  content: { paddingHorizontal: 16 },
   fixedHeader: {
     position: "absolute",
     top: 0,
