@@ -106,7 +106,6 @@ export default function HomeScreen() {
           {
             paddingTop: HEADER_TOP,
             backgroundColor: colors.background,
-            borderBottomColor: colors.border,
           },
         ]}
       >
@@ -483,7 +482,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   iconBtn: {
     width: 44,
