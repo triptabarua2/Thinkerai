@@ -57,6 +57,7 @@ export default function HomeScreen() {
   } = useApp();
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("coding");
   const [agentPickerOpen, setAgentPickerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"agent" | "upgrade">("agent");
 
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
@@ -118,27 +119,34 @@ export default function HomeScreen() {
           <Feather name="menu" size={20} color={colors.text} />
         </TouchableOpacity>
 
-        {/* Center pill buttons — Agent + Upgrade */}
-        <View style={styles.pillRow}>
+        {/* Segmented pill — Agent | Upgrade */}
+        <View style={[styles.segmentWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity
-            style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAgentPickerOpen(true); }}
-            activeOpacity={0.75}
+            style={[styles.segment, activeTab === "agent" && { backgroundColor: colors.primary }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab("agent");
+              setAgentPickerOpen(true);
+            }}
+            activeOpacity={0.8}
           >
-            <Feather name={AGENTS[selectedAgent].icon as any} size={13} color={colors.primary} />
-            <Text style={[styles.pillText, { color: colors.text }]} numberOfLines={1}>
-              {AGENTS[selectedAgent].name}
+            <Text style={[styles.segmentText, { color: activeTab === "agent" ? "#fff" : colors.textSecondary }]}>
+              Agent
             </Text>
-            <Feather name="chevron-down" size={11} color={colors.textTertiary} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.pill, { backgroundColor: colors.primary, borderColor: colors.primary }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/settings" as any); }}
+            style={[styles.segment, activeTab === "upgrade" && { backgroundColor: colors.primary }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab("upgrade");
+              router.push("/settings" as any);
+            }}
             activeOpacity={0.8}
           >
-            <Feather name="zap" size={13} color="#fff" />
-            <Text style={[styles.pillText, { color: "#fff" }]}>Upgrade</Text>
+            <Text style={[styles.segmentText, { color: activeTab === "upgrade" ? "#fff" : colors.textSecondary }]}>
+              Upgrade
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -485,24 +493,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
   },
-  pillRow: {
-    flex: 1,
+  segmentWrap: {
     flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 3,
+    gap: 2,
+  },
+  segment: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    maxWidth: 130,
-  },
-  pillText: {
+  segmentText: {
     fontSize: 13,
     fontWeight: "600" as const,
     letterSpacing: -0.1,
