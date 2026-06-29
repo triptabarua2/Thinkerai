@@ -7,9 +7,11 @@ import {
   Animated,
   Easing,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -175,8 +177,12 @@ export default function HomeScreen() {
   const HEADER_H = HEADER_TOP + 44 + 12;
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Fixed Header — pinned to the very top */}
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
+    >
+      {/* Fixed Header — absolute overlay, doesn't affect flex layout */}
       <BlurView
         intensity={60}
         tint={colors.background === "#F0FAFA" ? "light" : "dark"}
@@ -238,11 +244,13 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </BlurView>
 
-      <View
-        style={[
-          styles.content,
-          { paddingTop: HEADER_H + 16 },
-        ]}
+      {/* Scrollable content area — takes all remaining flex space */}
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.content, { paddingTop: HEADER_H + 16 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={false}
       >
         {/* Hero */}
         <View style={styles.hero}>
@@ -314,7 +322,6 @@ export default function HomeScreen() {
                   const diff = i - centerIdx;
                   if (diff === 0) return;
                   resetAutoTimer();
-                  // advance the right number of steps
                   const steps = ((diff % QUICK_ACTIONS.length) + QUICK_ACTIONS.length) % QUICK_ACTIONS.length;
                   const shortSteps = steps <= QUICK_ACTIONS.length / 2 ? steps : steps - QUICK_ACTIONS.length;
                   runSlide(shortSteps > 0 ? 1 : -1);
@@ -326,9 +333,9 @@ export default function HomeScreen() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Bottom Chat Bar */}
+      {/* Bottom Chat Bar — flex child, NOT absolute, so keyboard pushes it up */}
       <HomeChatBar
         colors={colors}
         insets={insets}
@@ -405,7 +412,7 @@ export default function HomeScreen() {
           />
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -516,10 +523,6 @@ function HomeChatBar({
 
 const barStyles = StyleSheet.create({
   wrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
@@ -566,7 +569,8 @@ const barStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: 16 },
+  scrollArea: { flex: 1 },
+  content: { paddingHorizontal: 16, flexGrow: 1 },
   fixedHeader: {
     position: "absolute",
     top: 0,
