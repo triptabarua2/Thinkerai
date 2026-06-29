@@ -84,17 +84,49 @@ export default function HomeScreen() {
     router.push(`/chat/${id}?q=${encodeURIComponent(text.trim())}` as any);
   }
 
-  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-
-  // 2 columns on narrow (<420), 3 on wider
-  const cols = W < 420 ? 2 : 3;
-  const gap = 10;
+  // Carousel
   const hPad = 16;
-  const cardW = (W - hPad * 2 - gap * (cols - 1)) / cols;
+  const cGap = 10;
+  const visibleW = W - hPad * 2;
+  const cardW = (visibleW - 2 * cGap) / 3;
 
-  // Header sits right at safe-area top — no extra web offset
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [carouselBase, setCarouselBase] = useState(0);
+  const animating = useRef(false);
+
+  // Derived animations from single slideAnim
+  const stripX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -(cardW + cGap)],
+  });
+  const exitOpacity = slideAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] });
+  const enterOpacity = slideAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] });
+  const centerToSideScale = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.85] });
+  const sideToCenter = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+
+  function advanceCarousel() {
+    if (animating.current) return;
+    animating.current = true;
+    Animated.timing(slideAnim, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start(() => {
+      slideAnim.setValue(0);
+      setCarouselBase((prev) => (prev + 1) % QUICK_ACTIONS.length);
+      animating.current = false;
+    });
+  }
+
+  useEffect(() => {
+    const t = setInterval(advanceCarousel, 2800);
+    return () => clearInterval(t);
+  }, []);
+
+  // Header sits right at safe-area top
   const HEADER_TOP = insets.top + 12;
-  const HEADER_H = HEADER_TOP + 44 + 12; // paddingTop + btn + paddingBottom
+  const HEADER_H = HEADER_TOP + 44 + 12;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -176,33 +208,105 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* Quick Actions */}
+        {/* Quick Actions Carousel */}
         <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>QUICK ACTIONS</Text>
-        <View style={[styles.grid, { gap }]}>
-          {QUICK_ACTIONS.map((action) => {
-            const agent = AGENTS[action.agentType];
-            return (
-              <TouchableOpacity
-                key={action.id}
-                style={[
-                  styles.actionCard,
-                  { width: cardW, backgroundColor: colors.card, borderColor: colors.border },
-                ]}
-                onPress={() => handleQuickAction(action.agentType)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionIcon, { backgroundColor: agent.color + "22" }]}>
-                  <Feather name={action.icon as any} size={20} color={agent.color} />
-                </View>
-                <Text style={[styles.actionLabel, { color: colors.text }]}>
-                  {action.label}
-                </Text>
-                <Text style={[styles.actionDesc, { color: colors.textTertiary }]}>
-                  {action.desc}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={{ width: visibleW, overflow: "hidden" }}>
+          <Animated.View
+            style={{
+              flexDirection: "row",
+              gap: cGap,
+              transform: [{ translateX: stripX }],
+            }}
+          >
+            {[0, 1, 2, 3].map((offset) => {
+              const idx = (carouselBase + offset) % QUICK_ACTIONS.length;
+              const action = QUICK_ACTIONS[idx];
+              const agent = AGENTS[action.agentType];
+
+              // offset 0 = exiting left, offset 1 = left, offset 2 = center (big), offset 3 = entering right
+              const isCenter = offset === 2;
+              const isExit = offset === 0;
+              const isEnter = offset === 3;
+
+              const scale = isCenter
+                ? sideToCenter
+                : offset === 1
+                ? centerToSideScale
+                : 0.85;
+              const opacity = isExit ? exitOpacity : isEnter ? enterOpacity : 1;
+
+              return (
+                <Animated.View
+                  key={`${carouselBase}-${offset}`}
+                  style={{
+                    width: cardW,
+                    opacity,
+                    transform: [{ scale: scale as any }],
+                    alignSelf: isCenter ? "flex-end" : "flex-end",
+                  }}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.carouselCard,
+                      {
+                        height: isCenter ? 178 : 134,
+                        backgroundColor: isCenter
+                          ? colors.primary
+                          : colors.card,
+                        borderColor: isCenter
+                          ? colors.primary
+                          : colors.border,
+                      },
+                    ]}
+                    onPress={() => handleQuickAction(action.agentType)}
+                    activeOpacity={0.75}
+                  >
+                    <View
+                      style={[
+                        styles.carouselIcon,
+                        {
+                          backgroundColor: isCenter
+                            ? "rgba(255,255,255,0.18)"
+                            : agent.color + "22",
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name={action.icon as any}
+                        size={isCenter ? 22 : 18}
+                        color={isCenter ? "#fff" : agent.color}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.carouselLabel,
+                        {
+                          color: isCenter ? "#fff" : colors.text,
+                          fontSize: isCenter ? 15 : 13,
+                        },
+                      ]}
+                    >
+                      {action.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.carouselDesc,
+                        {
+                          color: isCenter
+                            ? "rgba(255,255,255,0.72)"
+                            : colors.textTertiary,
+                          fontSize: isCenter ? 12 : 10,
+                        },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {action.desc}
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+          </Animated.View>
         </View>
       </View>
 
@@ -535,6 +639,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  carouselCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  carouselIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  carouselLabel: {
+    fontWeight: "700" as const,
+    letterSpacing: -0.2,
+  },
+  carouselDesc: {
+    lineHeight: 14,
+  },
   hero: { marginBottom: 28 },
   heroTitle: {
     fontSize: 32,
@@ -552,57 +677,5 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
     letterSpacing: 1.2,
     marginBottom: 10,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 8,
-  },
-  actionCard: {
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    gap: 8,
-    marginBottom: 10,
-  },
-  actionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionLabel: {
-    fontSize: 15,
-    fontWeight: "700" as const,
-  },
-  actionDesc: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  recentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  recentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recentText: { flex: 1 },
-  recentTitle: {
-    fontSize: 14,
-    fontWeight: "600" as const,
-  },
-  recentSub: {
-    fontSize: 12,
-    marginTop: 2,
   },
 });
