@@ -6,6 +6,8 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  FlatList,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { useApp } from "@/context/AppContext";
-import { type AgentType } from "@/lib/agents";
+import { AGENT_LIST, type AgentType } from "@/lib/agents";
 import { AGENTS } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 
@@ -53,6 +55,8 @@ export default function HomeScreen() {
     profileSheetOpen,
     setProfileSheetOpen,
   } = useApp();
+  const [selectedAgent, setSelectedAgent] = useState<AgentType>("coding");
+  const [agentPickerOpen, setAgentPickerOpen] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
@@ -114,9 +118,28 @@ export default function HomeScreen() {
           <Feather name="menu" size={20} color={colors.text} />
         </TouchableOpacity>
 
-        <View style={styles.logoWrap}>
-          <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
-          <Text style={[styles.logoText, { color: colors.text }]}>Thinker AI</Text>
+        {/* Center pill buttons — Agent + Upgrade */}
+        <View style={styles.pillRow}>
+          <TouchableOpacity
+            style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAgentPickerOpen(true); }}
+            activeOpacity={0.75}
+          >
+            <Feather name={AGENTS[selectedAgent].icon as any} size={13} color={colors.primary} />
+            <Text style={[styles.pillText, { color: colors.text }]} numberOfLines={1}>
+              {AGENTS[selectedAgent].name}
+            </Text>
+            <Feather name="chevron-down" size={11} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.pill, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/settings" as any); }}
+            activeOpacity={0.8}
+          >
+            <Feather name="zap" size={13} color="#fff" />
+            <Text style={[styles.pillText, { color: "#fff" }]}>Upgrade</Text>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
@@ -218,6 +241,66 @@ export default function HomeScreen() {
 
       <Sidebar visible={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <ProfileSheet visible={profileSheetOpen} onClose={() => setProfileSheetOpen(false)} />
+
+      {/* Agent Picker Modal */}
+      <Modal
+        transparent
+        animationType="slide"
+        visible={agentPickerOpen}
+        onRequestClose={() => setAgentPickerOpen(false)}
+        statusBarTranslucent
+      >
+        <TouchableOpacity
+          style={styles.agentOverlay}
+          activeOpacity={1}
+          onPress={() => setAgentPickerOpen(false)}
+        />
+        <View style={[styles.agentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.agentHandle, { backgroundColor: colors.border }]} />
+          <Text style={[styles.agentSheetTitle, { color: colors.text }]}>Choose Agent</Text>
+          <FlatList
+            data={AGENT_LIST}
+            keyExtractor={(item) => item.type}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+            renderItem={({ item }) => {
+              const isSelected = selectedAgent === item.type;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.agentRow,
+                    {
+                      backgroundColor: isSelected ? colors.primary + "12" : "transparent",
+                      borderColor: isSelected ? colors.primary + "40" : colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedAgent(item.type);
+                    setAgentPickerOpen(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.agentRowIcon, { backgroundColor: item.color + "18" }]}>
+                    <Feather name={item.icon as any} size={18} color={item.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.agentRowName, { color: colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.agentRowDesc, { color: colors.textTertiary }]} numberOfLines={1}>
+                      {item.description}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <View style={[styles.agentCheck, { backgroundColor: colors.primary }]}>
+                      <Feather name="check" size={12} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -402,20 +485,84 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
   },
-  logoWrap: {
+  pillRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
-  logoDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    maxWidth: 130,
   },
-  logoText: {
-    fontSize: 19,
+  pillText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    letterSpacing: -0.1,
+  },
+  agentOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  agentSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    maxHeight: "70%",
+  },
+  agentHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  agentSheetTitle: {
+    fontSize: 16,
     fontWeight: "700" as const,
     letterSpacing: -0.3,
+    marginBottom: 12,
+  },
+  agentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  agentRowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  agentRowName: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+  },
+  agentRowDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  agentCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   hero: { marginBottom: 28 },
   heroTitle: {
