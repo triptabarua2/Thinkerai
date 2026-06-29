@@ -9,7 +9,6 @@ import {
   FlatList,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -49,7 +48,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: W } = useWindowDimensions();
   const {
-    conversations,
     createConversation,
     sidebarOpen,
     setSidebarOpen,
@@ -162,14 +160,11 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </BlurView>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
+      <View
+        style={[
           styles.content,
-          { paddingTop: HEADER_H + 16, paddingBottom: insets.bottom + 140 },
+          { paddingTop: HEADER_H + 16 },
         ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
         {/* Hero */}
         <View style={styles.hero}>
@@ -209,37 +204,7 @@ export default function HomeScreen() {
             );
           })}
         </View>
-
-        {/* Recent chats */}
-        {conversations.length > 0 && (
-          <>
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary, marginTop: 24 }]}>
-              RECENT CHATS
-            </Text>
-            {conversations.slice(0, 5).map((conv) => (
-              <TouchableOpacity
-                key={conv.id}
-                style={[styles.recentRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => router.push(`/chat/${conv.id}` as any)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.recentIcon, { backgroundColor: colors.primary + "18" }]}>
-                  <Feather name="message-square" size={16} color={colors.primary} />
-                </View>
-                <View style={styles.recentText}>
-                  <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={1}>
-                    {conv.title}
-                  </Text>
-                  <Text style={[styles.recentSub, { color: colors.textTertiary }]}>
-                    {conv.messages.length} messages
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={16} color={colors.textTertiary} />
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-      </ScrollView>
+      </View>
 
       {/* Bottom Chat Bar */}
       <HomeChatBar
@@ -472,7 +437,6 @@ const barStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { flex: 1 },
   content: { paddingHorizontal: 16 },
   fixedHeader: {
     position: "absolute",
