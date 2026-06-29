@@ -56,6 +56,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
-    "expo-document-picker": "^56.0.4"
+    "expo-document-picker": "^56.0.4",
+    "expo-navigation-bar": "^56.0.3"
   }
 }

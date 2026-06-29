@@ -8,7 +8,9 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
+import { Platform, useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -16,6 +18,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SplashAnimation } from "@/components/SplashAnimation";
 import { AppProvider } from "@/context/AppContext";
+import colors from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,6 +48,9 @@ export default function RootLayout() {
 
   const [splashDone, setSplashDone] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const scheme = useColorScheme();
+  const isLight = scheme === "light";
+  const bg = isLight ? colors.light.background : colors.dark.background;
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -52,6 +58,15 @@ export default function RootLayout() {
       setAppReady(true);
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      import("expo-navigation-bar").then((NavigationBar) => {
+        NavigationBar.setBackgroundColorAsync(bg);
+        NavigationBar.setButtonStyleAsync(isLight ? "dark" : "light");
+      });
+    }
+  }, [isLight, bg]);
 
   const handleSplashFinish = useCallback(() => {
     setSplashDone(true);
@@ -66,6 +81,11 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AppProvider>
+                <StatusBar
+                  style={isLight ? "dark" : "light"}
+                  backgroundColor={bg}
+                  translucent={false}
+                />
                 <RootLayoutNav />
                 {!splashDone && (
                   <SplashAnimation onFinish={handleSplashFinish} />
