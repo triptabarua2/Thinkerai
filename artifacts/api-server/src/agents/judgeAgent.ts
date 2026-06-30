@@ -1,4 +1,4 @@
-import { llmCall, parseJSON } from "../lib/llm.js";
+import { llmCall, parseJSON, langInstruction } from "../lib/llm.js";
 import type { JudgeResult, BuilderOutput, ReviewerResult, CriticResult } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Judge Agent for Thinker AI.
@@ -41,7 +41,8 @@ export function isHighRiskContent(content: string): boolean {
 export async function runJudgeAgent(
   builderOutput: BuilderOutput,
   reviewerResult: ReviewerResult,
-  criticResult: CriticResult
+  criticResult: CriticResult,
+  lang = "en"
 ): Promise<JudgeResult> {
   const contentPreview = builderOutput.content.slice(0, 2000);
   const reviewerCriticDisagree =
@@ -58,7 +59,7 @@ ${reviewerCriticDisagree ? "NOTE: Reviewer and Critic disagree — this increase
 Score and approve this deliverable.`;
 
   try {
-    const raw = await llmCall(SYSTEM, userPrompt, "strong");
+    const raw = await llmCall(SYSTEM + langInstruction(lang), userPrompt, "strong");
     const parsed = parseJSON<JudgeResult>(raw, defaultJudge());
     return {
       scores: parsed.scores ?? defaultScores(),

@@ -1,4 +1,4 @@
-import { llmCall, parseJSON } from "../lib/llm.js";
+import { llmCall, parseJSON, langInstruction } from "../lib/llm.js";
 import type { IntentType } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Strategy Agent for Thinker AI.
@@ -74,7 +74,8 @@ export async function runStrategyAgent(
   intentType: IntentType,
   requirements: Record<string, string>,
   signatureQuestionResponse: string | null,
-  constraintFindings: Record<string, string>
+  constraintFindings: Record<string, string>,
+  lang = "en"
 ): Promise<StrategyBrief> {
   const reqStr = Object.entries(requirements).map(([k, v]) => `${k}: ${v}`).join("\n");
   const constraintsStr = Object.entries(constraintFindings).map(([k, v]) => `${k}: ${v}`).join("\n");
@@ -93,7 +94,7 @@ ${constraintsStr || "none identified"}
 Produce a strategic brief for this project.`;
 
   try {
-    const raw = await llmCall(SYSTEM, userPrompt, "mid");
+    const raw = await llmCall(SYSTEM + langInstruction(lang), userPrompt, "mid");
     const parsed = parseJSON<StrategyBrief>(raw, defaultStrategy(goal));
     return {
       goalClarity: parsed.goalClarity ?? defaultStrategy(goal).goalClarity,

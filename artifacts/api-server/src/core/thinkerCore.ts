@@ -493,7 +493,8 @@ export async function runThinkerCore(
     state.intentType,
     state.thinkingLevel,
     history,
-    state.signatureQuestionAnswered
+    state.signatureQuestionAnswered,
+    lang
   );
 
   state.constraintFindings = clarification.constraintFindings;
@@ -571,7 +572,8 @@ export async function runThinkerCore(
       state.intentType,
       state.requirements,
       state.signatureQuestionResponse,
-      state.constraintFindings as Record<string, string>
+      state.constraintFindings as Record<string, string>,
+      lang
     );
 
     state.strategyBrief = strategyResult.strategicBrief;
@@ -646,7 +648,8 @@ export async function runThinkerCore(
         state.intentType,
         state.requirements,
         state.strategyBrief,
-        options?.domain
+        options?.domain,
+        lang
       );
 
       state.plan = planResult.steps;
@@ -687,7 +690,7 @@ export async function runThinkerCore(
         state.current_agent = "research";
         state.status = "researching";
         emit({ type: "agent_start", agent: "research", label: "Gathering context..." });
-        state.researchFindings = await runResearchAgent(researchSteps, message);
+        state.researchFindings = await runResearchAgent(researchSteps, message, lang);
         logAgent(state, {
           agent_name: "research",
           input_summary: `${researchSteps.length} steps need research`,
@@ -792,7 +795,8 @@ export async function runThinkerCore(
           state.researchFindings,
           state.requirements,
           (text) => emit({ type: "content", text: sanitizeModelNames(text) }),
-          lastReviewerResult ? { issues: lastReviewerResult.issues } : undefined
+          lastReviewerResult ? { issues: lastReviewerResult.issues } : undefined,
+          lang
         );
 
         state.builderOutput = builderOutput;
@@ -823,7 +827,7 @@ export async function runThinkerCore(
         state.status = "reviewing";
         emit({ type: "agent_start", agent: "reviewer", label: "Quality review..." });
 
-        const reviewerResult = await runReviewerAgent(builderOutput, state.requirements);
+        const reviewerResult = await runReviewerAgent(builderOutput, state.requirements, lang);
         state.reviewerResult = reviewerResult;
         lastReviewerResult = reviewerResult;
 
@@ -900,7 +904,7 @@ export async function runThinkerCore(
       state.status = "critiquing";
       emit({ type: "agent_start", agent: "critic", label: "Independent adversarial review..." });
 
-      const criticResult = await runCriticAgent(lastBuilderOutput);
+      const criticResult = await runCriticAgent(lastBuilderOutput, lang);
       state.criticResult = criticResult;
 
       logRouting(state, "critic", criticResult.next_action, criticResult.reason);
@@ -931,7 +935,7 @@ export async function runThinkerCore(
       state.status = "judging";
       emit({ type: "agent_start", agent: "judge", label: "Final judgment..." });
 
-      const judgeResult = await runJudgeAgent(lastBuilderOutput, state.reviewerResult, state.criticResult);
+      const judgeResult = await runJudgeAgent(lastBuilderOutput, state.reviewerResult, state.criticResult, lang);
       state.judgeResult = judgeResult;
 
       logAgent(state, {
@@ -997,7 +1001,8 @@ export async function runThinkerCore(
           lastBuilderOutput,
           state.reviewerResult,
           state.criticResult,
-          judgeResult
+          judgeResult,
+          lang
         );
         state.consensusResult = consensusResult;
 

@@ -1,4 +1,4 @@
-import { llmParallel, parseJSON } from "../lib/llm.js";
+import { llmParallel, parseJSON, langInstruction } from "../lib/llm.js";
 import type { ConsensusResult, ConsensusVote, BuilderOutput, ReviewerResult, CriticResult, JudgeResult, NextAction } from "../types/pipeline.js";
 
 const PERSONAS = [
@@ -31,7 +31,8 @@ export async function runConsensusAgent(
   builderOutput: BuilderOutput,
   reviewerResult: ReviewerResult,
   criticResult: CriticResult,
-  judgeResult: JudgeResult
+  judgeResult: JudgeResult,
+  lang = "en"
 ): Promise<ConsensusResultExtended> {
   const contentPreview = builderOutput.content.slice(0, 1500);
   const summary = `Deliverable preview:\n${contentPreview}
@@ -44,7 +45,7 @@ Quality summary:
 Should this deliverable be approved?`;
 
   const calls = PERSONAS.map((p) => ({
-    system: p.system,
+    system: p.system + langInstruction(lang),
     user: summary,
     tier: "mid" as const,
   }));

@@ -1,4 +1,4 @@
-import { llmCall, parseJSON } from "../lib/llm.js";
+import { llmCall, parseJSON, langInstruction } from "../lib/llm.js";
 import type { ReviewerResult, BuilderOutput, NextAction } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Reviewer Agent for Thinker AI.
@@ -34,7 +34,8 @@ export interface ReviewerResultExtended extends ReviewerResult {
 
 export async function runReviewerAgent(
   builderOutput: BuilderOutput,
-  requirements: Record<string, string>
+  requirements: Record<string, string>,
+  lang = "en"
 ): Promise<ReviewerResultExtended> {
   const reqStr = Object.entries(requirements).map(([k, v]) => `${k}: ${v}`).join(", ");
   const contentPreview = builderOutput.content.slice(0, 3000);
@@ -42,7 +43,7 @@ export async function runReviewerAgent(
   const userPrompt = `Requirements: ${reqStr || "build what was requested"}\n\nDeliverable to review:\n${contentPreview}\n\nRun quality checklist.`;
 
   try {
-    const raw = await llmCall(SYSTEM, userPrompt, "mid");
+    const raw = await llmCall(SYSTEM + langInstruction(lang), userPrompt, "mid");
     const parsed = parseJSON<ReviewerResultExtended>(raw, defaultReviewer());
     return {
       passed: parsed.passed ?? true,

@@ -1,4 +1,4 @@
-import { llmCall, parseJSON } from "../lib/llm.js";
+import { llmCall, parseJSON, langInstruction } from "../lib/llm.js";
 import type { ClarificationQuestion, IntentType, ThinkingLevel, NextAction, ConstraintFindings, AssumptionFlag } from "../types/pipeline.js";
 
 // ── Signature Question ─────────────────────────────────────────────────────
@@ -169,7 +169,8 @@ export async function runClarificationAgent(
   intentType: IntentType,
   thinkingLevel: ThinkingLevel,
   history: { role: string; content: string }[],
-  signatureAnswered: boolean
+  signatureAnswered: boolean,
+  lang = "en"
 ): Promise<ClarificationResult> {
   if (intentType === "chat") {
     return {
@@ -209,7 +210,7 @@ ${signatureStr}
 Run Smart Clarification for this project request. Detect emotional tone, surface hidden goals, identify constraints and assumptions.`;
 
   try {
-    const raw = await llmCall(SYSTEM, userPrompt, "fast");
+    const raw = await llmCall(SYSTEM + langInstruction(lang), userPrompt, "fast");
     const fallback = heuristicClarify(message, intentType, thinkingLevel);
     const parsed = parseJSON<ClarificationResult>(raw, fallback);
 

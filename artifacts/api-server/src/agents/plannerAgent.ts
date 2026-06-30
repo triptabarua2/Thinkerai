@@ -1,4 +1,4 @@
-import { llmCall, parseJSON } from "../lib/llm.js";
+import { llmCall, parseJSON, langInstruction } from "../lib/llm.js";
 import type { PlanStep, IntentType, NextAction } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Planner Agent for Thinker AI.
@@ -69,7 +69,8 @@ export async function runPlannerAgent(
   intentType: IntentType,
   requirements: Record<string, string>,
   strategyBrief: string | null,
-  domain?: string
+  domain?: string,
+  lang = "en"
 ): Promise<PlanResult> {
   const reqStr = Object.entries(requirements).map(([k, v]) => `${k}: ${v}`).join(", ");
   const strategyCtx = strategyBrief ? `\n\nStrategy Brief:\n${strategyBrief}` : "";
@@ -82,7 +83,7 @@ Requirements: ${reqStr || "none specified"}${domainCtx}${strategyCtx}
 Create an execution plan using the strategy brief to scope correctly.`;
 
   try {
-    const raw = await llmCall(SYSTEM, userPrompt, "mid");
+    const raw = await llmCall(SYSTEM + langInstruction(lang), userPrompt, "mid");
     const parsed = parseJSON<PlanResult>(raw, { steps: defaultPlan(intentType, goal), next_action: "proceed", reason: "Plan created" });
     const steps = (parsed.steps ?? []).slice(0, 6).map(s => ({
       ...s,

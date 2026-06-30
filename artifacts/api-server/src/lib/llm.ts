@@ -16,6 +16,18 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export type ModelTier = "fast" | "mid" | "strong";
 
+/**
+ * §17 — Multi-Language Support
+ * Returns a language instruction to append to any agent system prompt.
+ * English is the default — no extra instruction needed.
+ * For all other languages: user-facing text (questions, reasons, summaries)
+ * must be in the user's language. Code, JSON keys, and file names stay in English.
+ */
+export function langInstruction(lang: string): string {
+  if (!lang || lang === "en") return "";
+  return `\n\nLANGUAGE RULE (§17): The user's detected language is "${lang}". You MUST respond in that language for all user-facing text — questions, explanations, summaries, and the "reason" field. JSON structure keys and any generated code (variable names, functions, file names) must remain in English. Do not mix languages within a single sentence.`;
+}
+
 // ── Pool health tracking ────────────────────────────────────────────────────
 interface PoolHealthRecord {
   calls: number;

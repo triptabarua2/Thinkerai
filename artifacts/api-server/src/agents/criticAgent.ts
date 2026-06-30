@@ -1,4 +1,4 @@
-import { llmCall, parseJSON } from "../lib/llm.js";
+import { llmCall, parseJSON, langInstruction } from "../lib/llm.js";
 import type { CriticResult, BuilderOutput, NextAction } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Critic Agent for Thinker AI — an adversarial, skeptical reviewer.
@@ -34,12 +34,12 @@ export interface CriticResultExtended extends CriticResult {
   reason: string;
 }
 
-export async function runCriticAgent(builderOutput: BuilderOutput): Promise<CriticResultExtended> {
+export async function runCriticAgent(builderOutput: BuilderOutput, lang = "en"): Promise<CriticResultExtended> {
   const contentPreview = builderOutput.content.slice(0, 3000);
 
   try {
     const raw = await llmCall(
-      SYSTEM,
+      SYSTEM + langInstruction(lang),
       `Review this deliverable for weaknesses (you have NOT seen any previous review):\n${contentPreview}`,
       "mid"
     );

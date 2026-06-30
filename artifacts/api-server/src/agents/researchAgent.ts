@@ -1,4 +1,4 @@
-import { llmCall } from "../lib/llm.js";
+import { llmCall, langInstruction } from "../lib/llm.js";
 import type { PlanStep, ResearchFinding } from "../types/pipeline.js";
 
 const SYSTEM = `You are the Research Agent for Thinker AI.
@@ -12,14 +12,15 @@ Respond in plain text — no JSON.`;
 
 export async function runResearchAgent(
   steps: PlanStep[],
-  goal: string
+  goal: string,
+  lang = "en"
 ): Promise<ResearchFinding[]> {
   const findings: ResearchFinding[] = [];
 
   for (const step of steps.filter((s) => s.needsResearch)) {
     try {
       const findings_text = await llmCall(
-        SYSTEM,
+        SYSTEM + langInstruction(lang),
         `Project goal: "${goal}"\nStep to research: "${step.description}"\n\nProvide relevant context and best practices.`,
         "fast"
       );

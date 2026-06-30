@@ -1,4 +1,4 @@
-import { llmStream, llmCall } from "../lib/llm.js";
+import { llmStream, llmCall, langInstruction } from "../lib/llm.js";
 import type { PlanStep, ResearchFinding, BuilderOutput } from "../types/pipeline.js";
 import { getDemoResponse } from "../lib/demoResponses.js";
 
@@ -20,7 +20,8 @@ export async function runBuilderAgent(
   research: ResearchFinding[],
   requirements: Record<string, string>,
   onChunk: (text: string) => void,
-  reviewerFeedback?: { issues: { description: string; severity: string }[] }
+  reviewerFeedback?: { issues: { description: string; severity: string }[] },
+  lang = "en"
 ): Promise<BuilderOutput> {
   const stepList = steps.map((s) => `- ${s.description}`).join("\n");
   const researchCtx = research.length > 0
@@ -36,7 +37,7 @@ export async function runBuilderAgent(
   const userPrompt = `Build this project: "${goal}"\n\nExecution plan:\n${stepList}${reqCtx}${researchCtx}${retryCtx}\n\nDeliver the complete, production-ready result now.`;
 
   try {
-    const content = await llmStream(SYSTEM, [{ role: "user", content: userPrompt }], "strong", onChunk);
+    const content = await llmStream(SYSTEM + langInstruction(lang), [{ role: "user", content: userPrompt }], "strong", onChunk);
     return {
       artifactType: detectArtifactType(content),
       content,
