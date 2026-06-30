@@ -25,8 +25,7 @@ import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useApp } from "@/context/AppContext";
-import { AGENT_LIST, type AgentType } from "@/lib/agents";
-import { AGENTS } from "@/lib/agents";
+import { AGENT_LIST, AGENTS, type AgentType } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 
 const QUICK_ACTIONS: {
@@ -57,6 +56,10 @@ export default function HomeScreen() {
     profileSheetOpen,
     setProfileSheetOpen,
   } = useApp();
+  const PLAN_TIER = "free" as const;
+  const userCanUsePro = PLAN_TIER === "pro" || PLAN_TIER === "founder";
+  const PRO_TEAL = "#0D9488";
+
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("coding");
   const [agentPickerOpen, setAgentPickerOpen] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -356,26 +359,54 @@ export default function HomeScreen() {
         />
         <View style={[styles.agentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.agentHandle, { backgroundColor: colors.border }]} />
-          <Text style={[styles.agentSheetTitle, { color: colors.text }]}>Choose Agent</Text>
+          <View style={styles.agentSheetHeaderRow}>
+            <Text style={[styles.agentSheetTitle, { color: colors.text }]}>Choose Agent</Text>
+            {!userCanUsePro && (
+              <TouchableOpacity
+                style={[styles.proUnlockBadge, { backgroundColor: PRO_TEAL + "15", borderColor: PRO_TEAL + "40" }]}
+                onPress={() => { setAgentPickerOpen(false); setUpgradeModalOpen(true); }}
+                activeOpacity={0.8}
+              >
+                <Feather name="lock" size={10} color={PRO_TEAL} />
+                <Text style={[styles.proUnlockText, { color: PRO_TEAL }]}>8 Pro agents locked</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <FlatList
             data={AGENT_LIST}
-            keyExtractor={(item) => item.type}
+            keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
             renderItem={({ item }) => {
-              const isSelected = selectedAgent === item.type;
+              const isSelected = selectedAgent === item.id;
+              const isPro = item.planTier === "pro";
+              const locked = isPro && !userCanUsePro;
               return (
                 <TouchableOpacity
                   style={[
                     styles.agentRow,
                     {
-                      backgroundColor: isSelected ? colors.primary + "12" : "transparent",
-                      borderColor: isSelected ? colors.primary + "40" : colors.border,
+                      backgroundColor: isSelected
+                        ? colors.primary + "12"
+                        : locked
+                        ? PRO_TEAL + "06"
+                        : "transparent",
+                      borderColor: isSelected
+                        ? colors.primary + "40"
+                        : locked
+                        ? PRO_TEAL + "30"
+                        : colors.border,
+                      opacity: locked ? 0.75 : 1,
                     },
                   ]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSelectedAgent(item.type);
+                    if (locked) {
+                      setAgentPickerOpen(false);
+                      setUpgradeModalOpen(true);
+                      return;
+                    }
+                    setSelectedAgent(item.id);
                     setAgentPickerOpen(false);
                   }}
                   activeOpacity={0.7}
@@ -384,14 +415,25 @@ export default function HomeScreen() {
                     <Feather name={item.icon as any} size={18} color={item.color} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.agentRowName, { color: colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.agentRowName, { color: locked ? colors.textSecondary : colors.text }]}>
+                      {item.name}
+                    </Text>
                     <Text style={[styles.agentRowDesc, { color: colors.textTertiary }]} numberOfLines={1}>
-                      {item.description}
+                      {item.capability}
                     </Text>
                   </View>
-                  {isSelected && (
+                  {isSelected && !locked && (
                     <View style={[styles.agentCheck, { backgroundColor: colors.primary }]}>
                       <Feather name="check" size={12} color="#fff" />
+                    </View>
+                  )}
+                  {isPro && (
+                    <View style={[styles.agentProBadge, { backgroundColor: PRO_TEAL + "18", borderColor: PRO_TEAL + "45" }]}>
+                      {locked
+                        ? <Feather name="lock" size={10} color={PRO_TEAL} />
+                        : <Feather name="check-circle" size={10} color={PRO_TEAL} />
+                      }
+                      <Text style={[styles.agentProText, { color: PRO_TEAL }]}>PRO</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -674,11 +716,44 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 16,
   },
+  agentSheetHeaderRow: {
+    flexDirection: "row" as const,
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    paddingRight: 4,
+  },
   agentSheetTitle: {
     fontSize: 16,
     fontWeight: "700" as const,
     letterSpacing: -0.3,
-    marginBottom: 12,
+  },
+  proUnlockBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  proUnlockText: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+  },
+  agentProBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  agentProText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    letterSpacing: 0.4,
   },
   agentRow: {
     flexDirection: "row",
