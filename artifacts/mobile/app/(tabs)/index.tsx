@@ -460,13 +460,14 @@ function HomeChatBar({
     }).start();
   }, [inputH]);
 
-  // iOS only: manually track keyboard height so bar slides above keyboard.
-  // Android: OS handles it via adjustPan (window pans up automatically), bottom:0 is enough.
-  // Web: position:fixed, no tracking needed.
+  // Native: manually track keyboard height — window never resizes/pans (adjustNothing via plugin).
+  // Only the bar moves. Web: position:fixed handles it automatically.
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
-    const showSub = Keyboard.addListener("keyboardWillShow", (e) => setKbHeight(e.endCoordinates.height));
-    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKbHeight(0));
+    if (Platform.OS === "web") return;
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKbHeight(0));
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
@@ -502,14 +503,12 @@ function HomeChatBar({
   const profileMargin = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] });
   const atMax = inputH >= INPUT_MAX_H;
 
-  // Web:     position:fixed — keyboard doesn't affect layout at all
-  // Android: position:absolute bottom:0 — OS pans window up via adjustPan, bar stays above keyboard naturally
-  // iOS:     position:absolute bottom:kbHeight — manual offset because iOS doesn't pan
+  // Web:    position:fixed — keyboard never affects layout
+  // Native: position:absolute + kbHeight — window stays completely fixed (adjustNothing),
+  //         only this bar slides up above the keyboard manually
   const positionStyle: any =
     Platform.OS === "web"
       ? { position: "fixed", bottom: 0, left: 0, right: 0 }
-      : Platform.OS === "android"
-      ? { position: "absolute", bottom: 0, left: 0, right: 0 }
       : { position: "absolute", bottom: kbHeight, left: 0, right: 0 };
 
   return (
