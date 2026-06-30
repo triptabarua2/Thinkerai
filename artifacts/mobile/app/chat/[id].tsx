@@ -1145,6 +1145,7 @@ export default function ChatScreen() {
       <AgentPanel
         agentType={agentType}
         isStreaming={isStreaming}
+        planTier={PLAN_TIER}
         onAgentChange={async (a) => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           const newChatId = await createConversation(`${AGENTS[a].name} Chat`, a);

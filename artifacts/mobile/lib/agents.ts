@@ -17,6 +17,8 @@ export type AgentType =
   | "automation"
   | "report";
 
+export type AgentPlanTier = "free" | "pro";
+
 export interface AgentDef {
   id: AgentType;
   name: string;
@@ -26,8 +28,11 @@ export interface AgentDef {
   description: string;
   capability: string;
   placeholder: string;
+  planTier: AgentPlanTier;
 }
 
+// Free (9): CEO, Coding, Research, Planner, Browser, File, QA, Canvas, Image
+// Pro  (8): Git, Memory, Video, Music, DevOps, Security, Automation, Report
 export const AGENTS: Record<AgentType, AgentDef> = {
   ceo: {
     id: "ceo",
@@ -38,6 +43,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Orchestrating",
     capability: "Orchestrate & execute complex goals",
     placeholder: "What complex goal should I orchestrate for you?",
+    planTier: "free",
   },
   planner: {
     id: "planner",
@@ -48,6 +54,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Planning",
     capability: "Roadmaps, milestones & strategies",
     placeholder: "Describe the roadmap or strategy you need...",
+    planTier: "free",
   },
   research: {
     id: "research",
@@ -58,6 +65,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Researching",
     capability: "Deep research & knowledge synthesis",
     placeholder: "What topic should I research deeply?",
+    planTier: "free",
   },
   coding: {
     id: "coding",
@@ -68,6 +76,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Coding",
     capability: "Production-ready code in any language",
     placeholder: "Describe the app, feature, or bug to fix...",
+    planTier: "free",
   },
   browser: {
     id: "browser",
@@ -78,6 +87,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Browsing",
     capability: "Web automation & scraping",
     placeholder: "Which website should I automate or scrape?",
+    planTier: "free",
   },
   file: {
     id: "file",
@@ -88,46 +98,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Processing",
     capability: "Parse & transform any file format",
     placeholder: "Describe the file to parse or transform...",
-  },
-  git: {
-    id: "git",
-    name: "Git Agent",
-    shortName: "Git",
-    icon: "git-branch",
-    color: "#FF6B6B",
-    description: "Version control",
-    capability: "Git workflows & repository management",
-    placeholder: "What git task or workflow do you need?",
-  },
-  devops: {
-    id: "devops",
-    name: "DevOps Agent",
-    shortName: "DevOps",
-    icon: "server",
-    color: "#6C8EFF",
-    description: "Deploying",
-    capability: "Docker, CI/CD & cloud infrastructure",
-    placeholder: "Describe your deployment or infra setup...",
-  },
-  memory: {
-    id: "memory",
-    name: "Memory Agent",
-    shortName: "Memory",
-    icon: "database",
-    color: "#FF61DC",
-    description: "Remembering",
-    capability: "Knowledge base & context management",
-    placeholder: "What should I remember or recall for you?",
-  },
-  security: {
-    id: "security",
-    name: "Security Agent",
-    shortName: "Security",
-    icon: "shield",
-    color: "#FF3B30",
-    description: "Securing",
-    capability: "Security audits & vulnerability fixes",
-    placeholder: "What system should I audit for vulnerabilities?",
+    planTier: "free",
   },
   qa: {
     id: "qa",
@@ -138,36 +109,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Testing",
     capability: "Test suites & quality assurance",
     placeholder: "Describe the feature or code to test...",
-  },
-  video: {
-    id: "video",
-    name: "Video Agent",
-    shortName: "Video",
-    icon: "video",
-    color: "#FF2D87",
-    description: "Creating",
-    capability: "Video scripts, editing & production",
-    placeholder: "What video should I script or produce?",
-  },
-  image: {
-    id: "image",
-    name: "Image Agent",
-    shortName: "Image",
-    icon: "image",
-    color: "#BF5AF2",
-    description: "Generating",
-    capability: "Image generation prompts & visual design",
-    placeholder: "Describe the image or visual you want...",
-  },
-  music: {
-    id: "music",
-    name: "Music Agent",
-    shortName: "Music",
-    icon: "music",
-    color: "#5E5CE6",
-    description: "Composing",
-    capability: "Music composition & audio production",
-    placeholder: "What music or audio should I compose?",
+    planTier: "free",
   },
   canvas: {
     id: "canvas",
@@ -178,6 +120,85 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Drawing",
     capability: "Diagrams, mind maps & architecture",
     placeholder: "Describe the diagram or architecture to draw...",
+    planTier: "free",
+  },
+  image: {
+    id: "image",
+    name: "Image Agent",
+    shortName: "Image",
+    icon: "image",
+    color: "#BF5AF2",
+    description: "Generating",
+    capability: "Image generation prompts & visual design",
+    placeholder: "Describe the image or visual you want...",
+    planTier: "free",
+  },
+  // ── Pro agents ────────────────────────────────────────────────
+  git: {
+    id: "git",
+    name: "Git Agent",
+    shortName: "Git",
+    icon: "git-branch",
+    color: "#FF6B6B",
+    description: "Version control",
+    capability: "Git workflows & repository management",
+    placeholder: "What git task or workflow do you need?",
+    planTier: "pro",
+  },
+  memory: {
+    id: "memory",
+    name: "Memory Agent",
+    shortName: "Memory",
+    icon: "database",
+    color: "#FF61DC",
+    description: "Remembering",
+    capability: "Knowledge base & context management",
+    placeholder: "What should I remember or recall for you?",
+    planTier: "pro",
+  },
+  video: {
+    id: "video",
+    name: "Video Agent",
+    shortName: "Video",
+    icon: "video",
+    color: "#FF2D87",
+    description: "Creating",
+    capability: "Video scripts, editing & production",
+    placeholder: "What video should I script or produce?",
+    planTier: "pro",
+  },
+  music: {
+    id: "music",
+    name: "Music Agent",
+    shortName: "Music",
+    icon: "music",
+    color: "#5E5CE6",
+    description: "Composing",
+    capability: "Music composition & audio production",
+    placeholder: "What music or audio should I compose?",
+    planTier: "pro",
+  },
+  devops: {
+    id: "devops",
+    name: "DevOps Agent",
+    shortName: "DevOps",
+    icon: "server",
+    color: "#6C8EFF",
+    description: "Deploying",
+    capability: "Docker, CI/CD & cloud infrastructure",
+    placeholder: "Describe your deployment or infra setup...",
+    planTier: "pro",
+  },
+  security: {
+    id: "security",
+    name: "Security Agent",
+    shortName: "Security",
+    icon: "shield",
+    color: "#FF3B30",
+    description: "Securing",
+    capability: "Security audits & vulnerability fixes",
+    placeholder: "What system should I audit for vulnerabilities?",
+    planTier: "pro",
   },
   automation: {
     id: "automation",
@@ -188,6 +209,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Automating",
     capability: "Workflows, scripts & pipelines",
     placeholder: "What workflow or process should I automate?",
+    planTier: "pro",
   },
   report: {
     id: "report",
@@ -198,10 +220,15 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     description: "Reporting",
     capability: "Reports, analysis & documentation",
     placeholder: "What report or document should I create?",
+    planTier: "pro",
   },
 };
 
 export const AGENT_LIST: AgentDef[] = Object.values(AGENTS);
+
+export const FREE_AGENTS = new Set<AgentType>(
+  AGENT_LIST.filter((a) => a.planTier === "free").map((a) => a.id)
+);
 
 export const DOMAIN_LIST = [
   "general", "coding", "design", "devops", "security",
