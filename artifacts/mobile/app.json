@@ -26,8 +26,7 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-navigation-bar",
-      "react-native-keyboard-controller"
+      "expo-navigation-bar"
     ],
     "experiments": {
       "typedRoutes": true,

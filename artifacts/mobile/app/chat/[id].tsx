@@ -148,6 +148,25 @@ export default function ChatScreen() {
     }
   }, [conv]);
 
+  function handleReloadMessage(msg: import("@/context/AppContext").Message) {
+    if (isStreaming) return;
+    handleSendRef.current(msg.content);
+  }
+
+  function handleRetryAssistant(msg: import("@/context/AppContext").Message) {
+    if (isStreaming) return;
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUser) handleSendRef.current(lastUser.content);
+  }
+
+  function handleEditMessage(msg: import("@/context/AppContext").Message) {
+    /* editing is surfaced via the input — future: pre-fill input */
+  }
+
+  function handleReplyMessage(msg: import("@/context/AppContext").Message) {
+    /* reply: future implementation */
+  }
+
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
   useEffect(() => {
@@ -1100,7 +1119,14 @@ export default function ChatScreen() {
         <FlatList
           data={reversedMessages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) => (
+            <MessageBubble
+              message={item}
+              onReload={item.role === "user" ? handleReloadMessage : handleRetryAssistant}
+              onEdit={item.role === "user" ? handleEditMessage : undefined}
+              onReply={item.role === "assistant" ? handleReplyMessage : undefined}
+            />
+          )}
           inverted={messages.length > 0}
           ListHeaderComponent={
             <>
@@ -1280,11 +1306,8 @@ export default function ChatScreen() {
             onSend={handleSend}
             onAttach={handleAttach}
             disabled={isStreaming || isClarifying}
-            placeholder={
-              isClarifying
-                ? "Answer the questions above first..."
-                : "Ask anything or describe a project..."
-            }
+            agentType={agentType}
+            placeholder={isClarifying ? "Answer the questions above first..." : undefined}
           />
         </View>
       </KeyboardAvoidingView>

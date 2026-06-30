@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 
+import { AGENTS, type AgentType } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 
 const INPUT_MIN_H = 36;
@@ -39,14 +40,16 @@ interface Props {
   disabled?: boolean;
   placeholder?: string;
   creditBalance?: number;
+  agentType?: AgentType;
 }
 
 export function ChatInput({
   onSend,
   onAttach,
   disabled = false,
-  placeholder = "Message Thinker AI...",
+  placeholder,
   creditBalance = 50,
+  agentType,
 }: Props) {
   const colors = useColors();
   const [text, setText] = useState("");
@@ -56,11 +59,14 @@ export function ChatInput({
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
+  const agentDef = agentType ? AGENTS[agentType] : null;
+  const resolvedPlaceholder =
+    placeholder ?? agentDef?.placeholder ?? "Message Thinker AI...";
+
   const canSend = text.trim().length > 0 && !disabled;
   const estimatedCredits = CREDIT_COSTS[level];
   const canAfford = creditBalance >= estimatedCredits;
 
-  // Spring-animate the input height whenever it changes
   useEffect(() => {
     Animated.spring(heightAnim, {
       toValue: inputH,
@@ -78,6 +84,7 @@ export function ChatInput({
   }
 
   function handleContentSizeChange(e: any) {
+    if (!text) return;
     const h = e.nativeEvent.contentSize.height;
     const target = Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H);
     if (Math.abs(target - inputH) > 0.5) setInputH(target);
@@ -88,6 +95,7 @@ export function ChatInput({
     const content = text.trim();
     setText("");
     setInputH(INPUT_MIN_H);
+    heightAnim.setValue(INPUT_MIN_H);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onSend(content, level);
     inputRef.current?.focus();
@@ -100,7 +108,6 @@ export function ChatInput({
 
   return (
     <View style={styles.wrapper}>
-      {/* Credit cost chip — shown above input when text is being typed */}
       {text.trim().length > 0 && (
         <View style={[styles.chipRow]}>
           <View
@@ -134,7 +141,6 @@ export function ChatInput({
         </View>
       )}
 
-      {/* Main input row */}
       <View
         style={[
           styles.container,
@@ -144,7 +150,6 @@ export function ChatInput({
           },
         ]}
       >
-        {/* File attach */}
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={onAttach}
@@ -154,14 +159,13 @@ export function ChatInput({
           <Feather name="paperclip" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {/* Text input — spring-grows via Animated.View */}
-        <Animated.View style={{ flex: 1, height: heightAnim }}>
+        <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
           <TextInput
             ref={inputRef}
-            style={[styles.input, { color: colors.text, outlineStyle: "none", flex: 1 } as any]}
+            style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
             value={text}
             onChangeText={setText}
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             placeholderTextColor={colors.textTertiary}
             multiline
             maxLength={4000}
@@ -172,7 +176,6 @@ export function ChatInput({
           />
         </Animated.View>
 
-        {/* Thinking Level chip */}
         <TouchableOpacity
           style={[
             styles.levelChip,
@@ -187,7 +190,6 @@ export function ChatInput({
           </Text>
         </TouchableOpacity>
 
-        {/* Send button */}
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <Pressable
             style={[
@@ -258,12 +260,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  input: {
+  inputWrap: {
     flex: 1,
+    justifyContent: "center",
+  },
+  input: {
     fontSize: 15,
     lineHeight: 22,
-    paddingTop: 7,
-    paddingBottom: 7,
+    paddingTop: 0,
+    paddingBottom: 0,
     paddingHorizontal: 4,
   },
   levelChip: {

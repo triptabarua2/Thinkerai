@@ -25,6 +25,7 @@ export interface AgentDef {
   color: string;
   description: string;
   capability: string;
+  placeholder: string;
 }
 
 export const AGENTS: Record<AgentType, AgentDef> = {
@@ -36,6 +37,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FFB800",
     description: "Orchestrating",
     capability: "Orchestrate & execute complex goals",
+    placeholder: "What complex goal should I orchestrate for you?",
   },
   planner: {
     id: "planner",
@@ -45,6 +47,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#A0FF50",
     description: "Planning",
     capability: "Roadmaps, milestones & strategies",
+    placeholder: "Describe the roadmap or strategy you need...",
   },
   research: {
     id: "research",
@@ -54,6 +57,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#00D4FF",
     description: "Researching",
     capability: "Deep research & knowledge synthesis",
+    placeholder: "What topic should I research deeply?",
   },
   coding: {
     id: "coding",
@@ -63,6 +67,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#7B61FF",
     description: "Coding",
     capability: "Production-ready code in any language",
+    placeholder: "Describe the app, feature, or bug to fix...",
   },
   browser: {
     id: "browser",
@@ -72,6 +77,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#00D4AA",
     description: "Browsing",
     capability: "Web automation & scraping",
+    placeholder: "Which website should I automate or scrape?",
   },
   file: {
     id: "file",
@@ -81,6 +87,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FF9500",
     description: "Processing",
     capability: "Parse & transform any file format",
+    placeholder: "Describe the file to parse or transform...",
   },
   git: {
     id: "git",
@@ -90,6 +97,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FF6B6B",
     description: "Version control",
     capability: "Git workflows & repository management",
+    placeholder: "What git task or workflow do you need?",
   },
   devops: {
     id: "devops",
@@ -99,6 +107,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#6C8EFF",
     description: "Deploying",
     capability: "Docker, CI/CD & cloud infrastructure",
+    placeholder: "Describe your deployment or infra setup...",
   },
   memory: {
     id: "memory",
@@ -108,6 +117,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FF61DC",
     description: "Remembering",
     capability: "Knowledge base & context management",
+    placeholder: "What should I remember or recall for you?",
   },
   security: {
     id: "security",
@@ -117,6 +127,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FF3B30",
     description: "Securing",
     capability: "Security audits & vulnerability fixes",
+    placeholder: "What system should I audit for vulnerabilities?",
   },
   qa: {
     id: "qa",
@@ -126,6 +137,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#34C759",
     description: "Testing",
     capability: "Test suites & quality assurance",
+    placeholder: "Describe the feature or code to test...",
   },
   video: {
     id: "video",
@@ -135,6 +147,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FF2D87",
     description: "Creating",
     capability: "Video scripts, editing & production",
+    placeholder: "What video should I script or produce?",
   },
   image: {
     id: "image",
@@ -144,6 +157,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#BF5AF2",
     description: "Generating",
     capability: "Image generation prompts & visual design",
+    placeholder: "Describe the image or visual you want...",
   },
   music: {
     id: "music",
@@ -153,6 +167,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#5E5CE6",
     description: "Composing",
     capability: "Music composition & audio production",
+    placeholder: "What music or audio should I compose?",
   },
   canvas: {
     id: "canvas",
@@ -162,6 +177,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#30D158",
     description: "Drawing",
     capability: "Diagrams, mind maps & architecture",
+    placeholder: "Describe the diagram or architecture to draw...",
   },
   automation: {
     id: "automation",
@@ -171,6 +187,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FF6D00",
     description: "Automating",
     capability: "Workflows, scripts & pipelines",
+    placeholder: "What workflow or process should I automate?",
   },
   report: {
     id: "report",
@@ -180,6 +197,7 @@ export const AGENTS: Record<AgentType, AgentDef> = {
     color: "#FFD60A",
     description: "Reporting",
     capability: "Reports, analysis & documentation",
+    placeholder: "What report or document should I create?",
   },
 };
 
