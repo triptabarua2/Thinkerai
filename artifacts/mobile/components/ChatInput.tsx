@@ -52,6 +52,7 @@ export function ChatInput({
   const [text, setText] = useState("");
   const [level, setLevel] = useState<ThinkingLevel>("medium");
   const [inputH, setInputH] = useState(INPUT_MIN_H);
+  const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -59,10 +60,27 @@ export function ChatInput({
   const estimatedCredits = CREDIT_COSTS[level];
   const canAfford = creditBalance >= estimatedCredits;
 
+  // Spring-animate the input height whenever it changes
+  useEffect(() => {
+    Animated.spring(heightAnim, {
+      toValue: inputH,
+      useNativeDriver: false,
+      damping: 22,
+      stiffness: 280,
+      mass: 0.7,
+    }).start();
+  }, [inputH]);
+
   function cycleLevel() {
     Haptics.selectionAsync();
     const idx = LEVEL_ORDER.indexOf(level);
     setLevel(LEVEL_ORDER[(idx + 1) % LEVEL_ORDER.length]);
+  }
+
+  function handleContentSizeChange(e: any) {
+    const h = e.nativeEvent.contentSize.height;
+    const target = Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H);
+    if (Math.abs(target - inputH) > 0.5) setInputH(target);
   }
 
   function handleSend() {
@@ -136,24 +154,23 @@ export function ChatInput({
           <Feather name="paperclip" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {/* Text input */}
-        <TextInput
-          ref={inputRef}
-          style={[styles.input, { color: colors.text, outlineStyle: "none", height: inputH } as any]}
-          value={text}
-          onChangeText={setText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          maxLength={4000}
-          blurOnSubmit={false}
-          scrollEnabled={inputH >= INPUT_MAX_H}
-          onContentSizeChange={(e) => {
-            const h = e.nativeEvent.contentSize.height;
-            setInputH(Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H));
-          }}
-          onSubmitEditing={handleSend}
-        />
+        {/* Text input — spring-grows via Animated.View */}
+        <Animated.View style={{ flex: 1, height: heightAnim }}>
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, { color: colors.text, outlineStyle: "none", flex: 1 } as any]}
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            maxLength={4000}
+            blurOnSubmit={false}
+            scrollEnabled={inputH >= INPUT_MAX_H}
+            onContentSizeChange={handleContentSizeChange}
+            onSubmitEditing={handleSend}
+          />
+        </Animated.View>
 
         {/* Thinking Level chip */}
         <TouchableOpacity

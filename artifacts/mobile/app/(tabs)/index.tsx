@@ -422,41 +422,30 @@ function HomeChatBar({
   const [focused, setFocused] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
   const [inputH, setInputH] = useState(INPUT_MIN_H);
+  const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const profileAnim = useRef(new Animated.Value(1)).current;
   const canSend = text.trim().length > 0;
 
-  // Track keyboard height — only the bar moves up, content stays fixed
+  // Animate height with spring whenever inputH changes
   useEffect(() => {
-    if (Platform.OS === "web") {
-      // Web: use visualViewport API (works on mobile browsers)
-      if (typeof window === "undefined") return;
-      const vv = (window as any).visualViewport as VisualViewport | undefined;
-      if (!vv) return;
-      const handler = () => {
-        const diff = window.innerHeight - vv.height;
-        setKbHeight(Math.max(0, diff));
-      };
-      vv.addEventListener("resize", handler);
-      vv.addEventListener("scroll", handler);
-      return () => {
-        vv.removeEventListener("resize", handler);
-        vv.removeEventListener("scroll", handler);
-      };
-    } else {
-      // Native: use Keyboard events
-      const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-      const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-      const showSub = Keyboard.addListener(showEvent, (e) => {
-        setKbHeight(e.endCoordinates.height);
-      });
-      const hideSub = Keyboard.addListener(hideEvent, () => {
-        setKbHeight(0);
-      });
-      return () => {
-        showSub.remove();
-        hideSub.remove();
-      };
-    }
+    Animated.spring(heightAnim, {
+      toValue: inputH,
+      useNativeDriver: false,
+      damping: 22,
+      stiffness: 280,
+      mass: 0.7,
+    }).start();
+  }, [inputH]);
+
+  // On web: bar uses position:fixed so keyboard handling is automatic.
+  // On native: track keyboard manually.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
   function animateProfile(val: number) {
@@ -468,15 +457,8 @@ function HomeChatBar({
     }).start();
   }
 
-  function handleFocus() {
-    setFocused(true);
-    animateProfile(0);
-  }
-
-  function handleBlur() {
-    setFocused(false);
-    animateProfile(1);
-  }
+  function handleFocus() { setFocused(true); animateProfile(0); }
+  function handleBlur()  { setFocused(false); animateProfile(1); }
 
   function handleSend() {
     if (!canSend) return;
@@ -486,20 +468,30 @@ function HomeChatBar({
     onSend(msg);
   }
 
+  function handleContentSizeChange(e: any) {
+    const h = e.nativeEvent.contentSize.height;
+    const target = Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H);
+    if (Math.abs(target - inputH) > 0.5) setInputH(target);
+  }
+
   const borderColor = focused ? colors.primary + "90" : colors.border;
-
   const profileOpacity = profileAnim;
-  const profileWidth = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 44] });
+  const profileWidth  = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 44] });
   const profileMargin = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] });
-
   const atMax = inputH >= INPUT_MAX_H;
+
+  // Web: position:fixed keeps bar glued to bottom of visual viewport (fixes Android blank-space bug)
+  // Native: position:absolute + kbHeight moves bar above keyboard
+  const positionStyle: any = Platform.OS === "web"
+    ? { position: "fixed", bottom: 0, left: 0, right: 0 }
+    : { position: "absolute", bottom: kbHeight, left: 0, right: 0 };
 
   return (
     <View
       style={[
         barStyles.wrap,
+        positionStyle,
         {
-          bottom: kbHeight,
           paddingBottom: insets.bottom + 8,
           backgroundColor: colors.background,
           borderTopColor: colors.border,
@@ -517,35 +509,26 @@ function HomeChatBar({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Message box — auto-grows up to max height then scrolls inside */}
-      <View
-        style={[
-          barStyles.inputWrap,
-          { backgroundColor: colors.card, borderColor, borderWidth: 1.5 },
-        ]}
-      >
-        <TextInput
-          style={[
-            barStyles.input,
-            { color: colors.text, outlineStyle: "none", height: inputH } as any,
-          ]}
-          value={text}
-          onChangeText={setText}
-          placeholder="Ask Thinker AI anything..."
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          maxLength={2000}
-          scrollEnabled={atMax}
-          onContentSizeChange={(e) => {
-            const h = e.nativeEvent.contentSize.height;
-            setInputH(Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H));
-          }}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onSubmitEditing={handleSend}
-          blurOnSubmit={false}
-          returnKeyType="send"
-        />
+      {/* Message box — spring-grows up to max height then scrolls inside */}
+      <View style={[barStyles.inputWrap, { backgroundColor: colors.card, borderColor, borderWidth: 1.5 }]}>
+        <Animated.View style={{ flex: 1, height: heightAnim }}>
+          <TextInput
+            style={[barStyles.input, { color: colors.text, outlineStyle: "none" } as any]}
+            value={text}
+            onChangeText={setText}
+            placeholder="Ask Thinker AI anything..."
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            maxLength={2000}
+            scrollEnabled={atMax}
+            onContentSizeChange={handleContentSizeChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onSubmitEditing={handleSend}
+            blurOnSubmit={false}
+            returnKeyType="send"
+          />
+        </Animated.View>
         {canSend && (
           <TouchableOpacity
             style={[barStyles.sendBtn, { backgroundColor: colors.primary }]}
@@ -562,9 +545,6 @@ function HomeChatBar({
 
 const barStyles = StyleSheet.create({
   wrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
