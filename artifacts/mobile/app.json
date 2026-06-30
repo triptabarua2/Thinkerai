@@ -17,7 +17,8 @@
       "supportsTablet": false
     },
     "android": {
-      "backgroundColor": "#080811"
+      "backgroundColor": "#080811",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
