@@ -2,9 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  FlatList,
+  SectionList,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -60,7 +59,73 @@ export function AgentPanel({ agentType, isStreaming, planTier = "free", onAgentC
   }
 
   const freeAgents = AGENT_LIST.filter((a) => a.planTier === "free");
-  const proAgents = AGENT_LIST.filter((a) => a.planTier === "pro");
+  const proAgents  = AGENT_LIST.filter((a) => a.planTier === "pro");
+
+  // Pair agents into rows of 2 for the grid layout
+  type AgentDef = typeof freeAgents[number];
+  type AgentRow = [AgentDef, AgentDef | null];
+  function pairRows(list: AgentDef[]): AgentRow[] {
+    const rows: AgentRow[] = [];
+    for (let i = 0; i < list.length; i += 2) {
+      rows.push([list[i], list[i + 1] ?? null]);
+    }
+    return rows;
+  }
+
+  const sections = [
+    { key: "free", data: pairRows(freeAgents) },
+    { key: "pro",  data: pairRows(proAgents)  },
+  ];
+
+  function renderAgentCard(item: AgentDef, isPro: boolean) {
+    const isActive = item.id === agentType;
+    const locked   = isPro && !userCanUseProAgents;
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={[
+          styles.agentCard,
+          {
+            backgroundColor: isActive ? colors.primary + "20" : colors.card,
+            borderColor: isActive
+              ? colors.primary + "80"
+              : locked ? PRO_TEAL + "35" : colors.border,
+            opacity: locked ? 0.72 : 1,
+            flex: 1,
+          },
+        ]}
+        onPress={() => handleAgentSelect(item.id)}
+        activeOpacity={0.75}
+      >
+        {isActive && !locked && (
+          <View style={[styles.activeCheck, { backgroundColor: colors.primary }]}>
+            <Feather name="check" size={9} color="#fff" />
+          </View>
+        )}
+        {isPro && (
+          <View style={styles.proCrown}>
+            <Text style={styles.proCrownText}>PRO</Text>
+          </View>
+        )}
+        {locked && (
+          <View style={styles.lockOverlay}>
+            <View style={styles.lockIconWrap}>
+              <Feather name="lock" size={12} color={PRO_TEAL} />
+            </View>
+          </View>
+        )}
+        <View style={[styles.cardIcon, { backgroundColor: isActive ? colors.primary + "22" : item.color + "22" }]}>
+          <Feather name={item.icon as any} size={18} color={isActive ? colors.primary : item.color} />
+        </View>
+        <Text style={[styles.cardName, { color: locked ? colors.textTertiary : colors.text }]}>
+          {item.name}
+        </Text>
+        <Text style={[styles.cardCap, { color: colors.textTertiary }]} numberOfLines={2}>
+          {item.capability}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <>
@@ -108,122 +173,49 @@ export function AgentPanel({ agentType, isStreaming, planTier = "free", onAgentC
             {freeAgents.length} free · {proAgents.length} pro agents
           </Text>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* FREE section */}
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>FREE</Text>
-            <FlatList
-              data={freeAgents}
-              keyExtractor={(a) => a.id}
-              numColumns={2}
-              columnWrapperStyle={{ gap: 10 }}
-              contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingBottom: 4 }}
-              scrollEnabled={false}
-              renderItem={({ item }) => {
-                const isActive = item.id === agentType;
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.agentCard,
-                      {
-                        backgroundColor: isActive ? colors.primary + "20" : colors.card,
-                        borderColor: isActive ? colors.primary + "80" : colors.border,
-                        flex: 1,
-                      },
-                    ]}
-                    onPress={() => handleAgentSelect(item.id)}
-                    activeOpacity={0.75}
-                  >
-                    {isActive && (
-                      <View style={[styles.activeCheck, { backgroundColor: colors.primary }]}>
-                        <Feather name="check" size={9} color="#fff" />
-                      </View>
-                    )}
-                    <View style={[styles.cardIcon, { backgroundColor: isActive ? colors.primary + "22" : item.color + "22" }]}>
-                      <Feather name={item.icon as any} size={18} color={isActive ? colors.primary : item.color} />
-                    </View>
-                    <Text style={[styles.cardName, { color: colors.text }]}>{item.name}</Text>
-                    <Text style={[styles.cardCap, { color: colors.textTertiary }]} numberOfLines={2}>
-                      {item.capability}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-
-            {/* PRO section */}
-            <View style={styles.proSectionHeader}>
-              <Text style={[styles.sectionLabel, { color: PRO_TEAL }]}>PRO</Text>
-              {!userCanUseProAgents && (
-                <TouchableOpacity
-                  style={styles.upgradeBadge}
-                  onPress={() => { setShowPicker(false); setShowUpgrade(true); }}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="lock" size={10} color={PRO_TEAL} />
-                  <Text style={styles.upgradeText}>Upgrade to unlock</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <FlatList
-              data={proAgents}
-              keyExtractor={(a) => a.id}
-              numColumns={2}
-              columnWrapperStyle={{ gap: 10 }}
-              contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingBottom: 16 }}
-              scrollEnabled={false}
-              renderItem={({ item }) => {
-                const isActive = item.id === agentType;
-                const locked = !userCanUseProAgents;
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.agentCard,
-                      {
-                        backgroundColor: isActive ? colors.primary + "20" : colors.card,
-                        borderColor: isActive ? colors.primary + "80" : locked ? PRO_TEAL + "35" : colors.border,
-                        flex: 1,
-                        opacity: locked ? 0.72 : 1,
-                      },
-                    ]}
-                    onPress={() => handleAgentSelect(item.id)}
-                    activeOpacity={0.75}
-                  >
-                    {isActive && !locked && (
-                      <View style={[styles.activeCheck, { backgroundColor: colors.primary }]}>
-                        <Feather name="check" size={9} color="#fff" />
-                      </View>
-                    )}
-                    <View style={styles.proCrown}>
-                      <Text style={styles.proCrownText}>PRO</Text>
-                    </View>
-
-                    {locked && (
-                      <View style={styles.lockOverlay}>
-                        <View style={styles.lockIconWrap}>
-                          <Feather name="lock" size={12} color={PRO_TEAL} />
-                        </View>
-                      </View>
-                    )}
-
-                    <View style={[styles.cardIcon, { backgroundColor: item.color + "20" }]}>
-                      <Feather name={item.icon as any} size={18} color={item.color} />
-                    </View>
-                    <Text style={[styles.cardName, { color: locked ? colors.textTertiary : colors.text }]}>
-                      {item.name}
-                    </Text>
-                    <Text style={[styles.cardCap, { color: colors.textTertiary }]} numberOfLines={2}>
-                      {item.capability}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </ScrollView>
+          {/* Single SectionList — scrollable, no nested ScrollView */}
+          <SectionList
+            sections={sections}
+            keyExtractor={(row, i) => `${row[0].id}-${i}`}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            stickySectionHeadersEnabled={false}
+            renderSectionHeader={({ section }) =>
+              section.key === "free" ? (
+                <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>FREE</Text>
+              ) : (
+                <View style={styles.proSectionHeader}>
+                  <Text style={[styles.sectionLabel, { color: PRO_TEAL }]}>PRO</Text>
+                  {!userCanUseProAgents && (
+                    <TouchableOpacity
+                      style={styles.upgradeBadge}
+                      onPress={() => { setShowPicker(false); setShowUpgrade(true); }}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="lock" size={10} color={PRO_TEAL} />
+                      <Text style={styles.upgradeText}>Upgrade to unlock</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )
+            }
+            renderItem={({ item: row, section }) => {
+              const isPro = section.key === "pro";
+              return (
+                <View style={styles.cardRow}>
+                  {renderAgentCard(row[0], isPro)}
+                  {row[1]
+                    ? renderAgentCard(row[1], isPro)
+                    : <View style={{ flex: 1 }} />
+                  }
+                </View>
+              );
+            }}
+          />
         </View>
       </Modal>
 
-      {/* Upgrade sheet — shown when locked pro agent is tapped */}
+      {/* Upgrade sheet */}
       <UpgradeModal visible={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </>
   );
@@ -348,6 +340,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600" as const,
     color: PRO_TEAL,
+  },
+  cardRow: {
+    flexDirection: "row" as const,
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
   agentCard: {
     borderRadius: 14,
