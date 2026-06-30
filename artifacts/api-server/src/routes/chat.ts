@@ -1,6 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { Router, type Request, type Response } from "express";
-import { getDemoResponse } from "../lib/demoResponses.js";
+import { llmDualChat } from "../lib/llm.js";
 
 const router = Router();
 
@@ -292,20 +291,17 @@ Your role:
 Always provide well-structured outputs with clear sections, headers, and executive summaries.`,
 };
 
-function getAnthropicClient(): Anthropic | null {
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey) return null;
-  return new Anthropic({ apiKey });
-}
-
-function getDeepSeekConfig() {
-  const apiKey = process.env["DEEPSEEK_API_KEY"];
-  if (!apiKey) return null;
-  return { apiKey, baseUrl: "https://api.deepseek.com/v1" };
-}
-
-async function streamDemo(res: Response, agentType: string, message: string) {
-  const content = getDemoResponse(agentType, message);
+async function streamDemo(res: Response, agentType: string, _message: string) {
+  const demos: Record<string, string> = {
+    ceo: "I'm Thinker AI — your Chief Executive Agent. I'm ready to orchestrate complex tasks across specialized agents. Connect API keys to unlock full autonomous capabilities.",
+    coding: "I'm the Coding Agent — ready to write production-grade code in any language. Connect API keys to start building real software.",
+    research: "I'm the Research Agent — ready to synthesize deep knowledge on any topic. Connect API keys to begin.",
+    planner: "I'm the Planner Agent — ready to build detailed roadmaps and execution plans. Connect API keys to start planning.",
+    devops: "I'm the DevOps Agent — ready to design infrastructure and automation pipelines. Connect API keys to proceed.",
+    security: "I'm the Security Agent — ready to audit and harden your systems. Connect API keys to begin.",
+    qa: "I'm the QA Agent — ready to design test strategies and write test suites. Connect API keys to start.",
+  };
+  const content = demos[agentType] ?? `I'm Thinker AI, your ${agentType} agent. Connect API keys to unlock full AI capabilities.`;
   const words = content.split(" ");
   for (let i = 0; i < words.length; i++) {
     const chunk = (i === 0 ? "" : " ") + words[i];
@@ -314,75 +310,6 @@ async function streamDemo(res: Response, agentType: string, message: string) {
   }
   res.write("data: [DONE]\n\n");
   res.end();
-}
-
-async function streamDeepSeek(
-  res: Response,
-  messages: { role: "user" | "assistant"; content: string }[],
-  systemPrompt: string,
-  agentType: string,
-  lastUserMsg: string
-): Promise<boolean> {
-  const config = getDeepSeekConfig();
-  if (!config) return false;
-
-  try {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        stream: true,
-        max_tokens: 8192,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-        ],
-      }),
-    });
-
-    if (!response.ok) return false;
-
-    const reader = response.body?.getReader();
-    if (!reader) return false;
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data: ")) continue;
-        const data = trimmed.slice(6);
-        if (data === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: { delta?: { content?: string } }[];
-          };
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) {
-            res.write(`data: ${JSON.stringify({ content })}\n\n`);
-          }
-        } catch {}
-      }
-    }
-
-    res.write("data: [DONE]\n\n");
-    res.end();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
@@ -405,37 +332,24 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
   const systemPrompt = AGENT_SYSTEMS[activeAgent] ?? AGENT_SYSTEMS.ceo;
   const lastUserMsg = messages[messages.length - 1]?.content ?? "";
 
-  const anthropic = getAnthropicClient();
+  try {
+    // §6.3 — Dual-Model Verified Chat: send to 2 different providers in parallel,
+    // compare responses, merge if they agree, use tie-breaker on factual disagreement.
+    const dual = await llmDualChat(systemPrompt, messages);
 
-  if (anthropic) {
-    try {
-      const stream = anthropic.messages.stream({
-        model: "claude-opus-4-8",
-        max_tokens: 8192,
-        system: systemPrompt,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      });
-
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
-        }
+    // Stream the verified answer chunk-by-chunk so the UX feels responsive
+    const chunks = dual.content.split(/(?<=\s)|(?=\s)/);
+    for (const chunk of chunks) {
+      if (chunk) {
+        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+        await new Promise((r) => setImmediate(r));
       }
-
-      res.write("data: [DONE]\n\n");
-      res.end();
-      return;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      req.log?.warn({ err: msg }, "Claude failed — trying DeepSeek");
     }
-  }
 
-  const dsOk = await streamDeepSeek(res, messages, systemPrompt, activeAgent, lastUserMsg);
-  if (!dsOk) {
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch {
+    // Fallback to demo when no API keys are configured
     await streamDemo(res, activeAgent, lastUserMsg);
   }
 });

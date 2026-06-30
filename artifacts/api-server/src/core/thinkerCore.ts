@@ -786,6 +786,19 @@ export async function runThinkerCore(
         const buildStart = Date.now();
         state.current_agent = "builder";
         state.status = "building";
+
+        // ── Stage 3: Live Preview (Section 16.1, Stage 3) ─────────────
+        // Only on first run (not retries) — tells the mobile client to show
+        // the "Stage 3: Building" progress card with a per-step breakdown.
+        if (builderRetries === 0) {
+          const stepsForPreview = codeSteps.length > 0 ? codeSteps : state.plan;
+          emit({
+            type: "stage_3_building",
+            totalSteps: stepsForPreview.length,
+            stepDescriptions: stepsForPreview.map((s) => s.description),
+          });
+        }
+
         const retryLabel = builderRetries > 0 ? ` (attempt ${builderRetries + 1})` : "";
         emit({ type: "agent_start", agent: "builder", label: `Building your deliverable${retryLabel}...` });
 

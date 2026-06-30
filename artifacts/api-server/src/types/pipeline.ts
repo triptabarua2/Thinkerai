@@ -224,6 +224,7 @@ export type PipelineEvent =
   | { type: "strategy_brief"; brief: string; assessment: string; founderMode: boolean }
   | { type: "thinking_summary"; summary: string; thinkingLevel: ThinkingLevel; estimatedCredits: number }
   | { type: "blueprint_ready"; steps: PlanStep[]; techStack: string; estimatedComplexity: string }
+  | { type: "stage_3_building"; totalSteps: number; stepDescriptions: string[] }
   | { type: "decision_saved"; rule: string; confirmation: string }
   | { type: "version_saved"; version_number: number; description: string }
   | { type: "language_detected"; language: string; languageName: string }

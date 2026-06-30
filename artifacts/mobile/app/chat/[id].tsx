@@ -815,6 +815,36 @@ export default function ChatScreen() {
               break;
             }
 
+            case "stage_3_building": {
+              const total = event.totalSteps as number;
+              const descs = (event.stepDescriptions as string[]) ?? [];
+              setPipelineLabel(`Stage 3: Building ${total} step${total !== 1 ? "s" : ""}...`);
+              if (total > 0) {
+                const preview = descs
+                  .slice(0, 3)
+                  .map((d: string, i: number) => `${i + 1}. ${d}`)
+                  .join("\n");
+                const extra = descs.length > 3 ? `\n*...and ${descs.length - 3} more steps*` : "";
+                const chunk = `\n\n🔨 **Stage 3 — Building**\n\n${preview}${extra}\n\n`;
+                fullContent += chunk;
+                if (!assistantAdded) {
+                  setShowTyping(false);
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant", content: fullContent, agentType: activeAgent, timestamp: Date.now() },
+                  ]);
+                  assistantAdded = true;
+                } else {
+                  setMessages((prev) => {
+                    const u = [...prev];
+                    u[u.length - 1] = { ...u[u.length - 1], content: fullContent };
+                    return u;
+                  });
+                }
+              }
+              break;
+            }
+
             case "strategy_brief": {
               const brief = event.brief as string;
               const assessment = event.assessment as string;
