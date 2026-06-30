@@ -5,6 +5,16 @@ import { spawn } from "child_process";
 const TARGET_PORT = 8081;
 const PROXY_PORT = 5000;
 
+function checkPortInUse(port) {
+  return new Promise((resolve) => {
+    const sock = net.createConnection({ host: "localhost", port }, () => {
+      sock.destroy();
+      resolve(true);
+    });
+    sock.on("error", () => resolve(false));
+  });
+}
+
 function waitForPort(port, retries = 60) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
@@ -22,28 +32,41 @@ function waitForPort(port, retries = 60) {
   });
 }
 
-const expoEnv = {
-  ...process.env,
-  PORT: String(TARGET_PORT),
-};
+async function main() {
+  const alreadyRunning = await checkPortInUse(TARGET_PORT);
 
-const expo = spawn(
-  "./node_modules/.bin/expo",
-  ["start", "--port", String(TARGET_PORT)],
-  { env: expoEnv, stdio: "inherit" }
-);
+  if (!alreadyRunning) {
+    const expoEnv = {
+      ...process.env,
+      PORT: String(TARGET_PORT),
+      EXPO_PACKAGER_PROXY_URL: process.env.EXPO_PACKAGER_PROXY_URL || "",
+      EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN || "",
+      EXPO_PUBLIC_REPL_ID: process.env.EXPO_PUBLIC_REPL_ID || "",
+      REACT_NATIVE_PACKAGER_HOSTNAME: process.env.REACT_NATIVE_PACKAGER_HOSTNAME || "",
+    };
 
-expo.on("error", (err) => console.error("Expo spawn error:", err));
-expo.on("exit", (code) => {
-  if (code !== 0 && code !== null) console.error(`Expo exited with code ${code}`);
-  process.exit(code ?? 0);
-});
+    const expo = spawn(
+      "./node_modules/.bin/expo",
+      ["start", "--localhost", "--port", String(TARGET_PORT)],
+      { env: expoEnv, stdio: "inherit" }
+    );
 
-process.on("SIGTERM", () => expo.kill("SIGTERM"));
-process.on("SIGINT", () => expo.kill("SIGINT"));
+    expo.on("error", (err) => console.error("Expo spawn error:", err));
+    expo.on("exit", (code) => {
+      if (code !== 0 && code !== null) console.error(`Expo exited with code ${code}`);
+      process.exit(code ?? 0);
+    });
 
-console.log(`Waiting for Metro on port ${TARGET_PORT}…`);
-waitForPort(TARGET_PORT).then(() => {
+    process.on("SIGTERM", () => expo.kill("SIGTERM"));
+    process.on("SIGINT", () => expo.kill("SIGINT"));
+  } else {
+    console.log(`Metro already running on port ${TARGET_PORT}, skipping Expo spawn.`);
+    process.on("SIGTERM", () => process.exit(0));
+    process.on("SIGINT", () => process.exit(0));
+  }
+
+  console.log(`Waiting for Metro on port ${TARGET_PORT}…`);
+  await waitForPort(TARGET_PORT);
   console.log(`Metro ready. Starting proxy on port ${PROXY_PORT}…`);
 
   const server = http.createServer((req, res) => {
@@ -85,7 +108,9 @@ waitForPort(TARGET_PORT).then(() => {
   server.listen(PROXY_PORT, "0.0.0.0", () => {
     console.log(`Dev proxy: 0.0.0.0:${PROXY_PORT} → localhost:${TARGET_PORT}`);
   });
-}).catch((err) => {
+}
+
+main().catch((err) => {
   console.error(err.message);
   process.exit(1);
 });
