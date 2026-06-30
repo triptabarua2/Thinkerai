@@ -404,6 +404,9 @@ export default function HomeScreen() {
   );
 }
 
+const INPUT_MIN_H = 32;
+const INPUT_MAX_H = 110;
+
 function HomeChatBar({
   colors,
   insets,
@@ -418,6 +421,7 @@ function HomeChatBar({
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
+  const [inputH, setInputH] = useState(INPUT_MIN_H);
   const profileAnim = useRef(new Animated.Value(1)).current;
   const canSend = text.trim().length > 0;
 
@@ -478,6 +482,7 @@ function HomeChatBar({
     if (!canSend) return;
     const msg = text.trim();
     setText("");
+    setInputH(INPUT_MIN_H);
     onSend(msg);
   }
 
@@ -486,6 +491,8 @@ function HomeChatBar({
   const profileOpacity = profileAnim;
   const profileWidth = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 44] });
   const profileMargin = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] });
+
+  const atMax = inputH >= INPUT_MAX_H;
 
   return (
     <View
@@ -510,7 +517,7 @@ function HomeChatBar({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Message box — always expanded */}
+      {/* Message box — auto-grows up to max height then scrolls inside */}
       <View
         style={[
           barStyles.inputWrap,
@@ -518,13 +525,21 @@ function HomeChatBar({
         ]}
       >
         <TextInput
-          style={[barStyles.input, { color: colors.text, outlineStyle: "none" } as any]}
+          style={[
+            barStyles.input,
+            { color: colors.text, outlineStyle: "none", height: inputH } as any,
+          ]}
           value={text}
           onChangeText={setText}
           placeholder="Ask Thinker AI anything..."
           placeholderTextColor={colors.textTertiary}
           multiline
           maxLength={2000}
+          scrollEnabled={atMax}
+          onContentSizeChange={(e) => {
+            const h = e.nativeEvent.contentSize.height;
+            setInputH(Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H));
+          }}
           onFocus={handleFocus}
           onBlur={handleBlur}
           onSubmitEditing={handleSend}
@@ -574,7 +589,6 @@ const barStyles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
     minHeight: 52,
-    maxHeight: 130,
   },
   input: {
     flex: 1,
@@ -582,7 +596,6 @@ const barStyles = StyleSheet.create({
     lineHeight: 22,
     paddingTop: 2,
     paddingBottom: 2,
-    minHeight: 32,
   },
   sendBtn: {
     width: 36,
@@ -595,7 +608,7 @@ const barStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, overflow: "hidden" },
   content: { paddingHorizontal: 16 },
   fixedHeader: {
     position: "absolute",

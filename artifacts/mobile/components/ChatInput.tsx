@@ -13,6 +13,9 @@ import {
 
 import { useColors } from "@/hooks/useColors";
 
+const INPUT_MIN_H = 36;
+const INPUT_MAX_H = 120;
+
 const CREDIT_COSTS: Record<string, number> = {
   low: 1,
   medium: 9,
@@ -48,6 +51,7 @@ export function ChatInput({
   const colors = useColors();
   const [text, setText] = useState("");
   const [level, setLevel] = useState<ThinkingLevel>("medium");
+  const [inputH, setInputH] = useState(INPUT_MIN_H);
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -65,6 +69,7 @@ export function ChatInput({
     if (!canSend) return;
     const content = text.trim();
     setText("");
+    setInputH(INPUT_MIN_H);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onSend(content, level);
     inputRef.current?.focus();
@@ -134,7 +139,7 @@ export function ChatInput({
         {/* Text input */}
         <TextInput
           ref={inputRef}
-          style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
+          style={[styles.input, { color: colors.text, outlineStyle: "none", height: inputH } as any]}
           value={text}
           onChangeText={setText}
           placeholder={placeholder}
@@ -142,6 +147,11 @@ export function ChatInput({
           multiline
           maxLength={4000}
           blurOnSubmit={false}
+          scrollEnabled={inputH >= INPUT_MAX_H}
+          onContentSizeChange={(e) => {
+            const h = e.nativeEvent.contentSize.height;
+            setInputH(Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H));
+          }}
           onSubmitEditing={handleSend}
         />
 
@@ -235,7 +245,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     lineHeight: 22,
-    maxHeight: 130,
     paddingTop: 7,
     paddingBottom: 7,
     paddingHorizontal: 4,
