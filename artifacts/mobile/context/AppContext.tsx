@@ -32,6 +32,8 @@ export interface Conversation {
   updatedAt: number;
   agentType?: AgentType;
   pinnedAt?: number;
+  favourite?: boolean;
+  archived?: boolean;
   detectedLanguage?: string;
   decisionMemory?: DecisionMemoryEntry[];
   medium_fix_count?: number;
@@ -44,6 +46,8 @@ interface AppContextValue {
   updateConversation: (id: string, updates: Partial<Conversation>) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   pinConversation: (id: string, pinned: boolean) => Promise<void>;
+  favouriteConversation: (id: string, fav: boolean) => Promise<void>;
+  archiveConversation: (id: string, archived: boolean) => Promise<void>;
   getConversation: (id: string) => Conversation | undefined;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -144,6 +148,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [persist]
   );
 
+  const favouriteConversation = useCallback(
+    async (id: string, fav: boolean) => {
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c.id === id ? { ...c, favourite: fav } : c
+        );
+        persist(next);
+        return next;
+      });
+    },
+    [persist]
+  );
+
+  const archiveConversation = useCallback(
+    async (id: string, archived: boolean) => {
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c.id === id ? { ...c, archived } : c
+        );
+        persist(next);
+        return next;
+      });
+    },
+    [persist]
+  );
+
   const getConversation = useCallback(
     (id: string) => conversations.find((c) => c.id === id),
     [conversations]
@@ -157,6 +187,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateConversation,
         deleteConversation,
         pinConversation,
+        favouriteConversation,
+        archiveConversation,
         getConversation,
         sidebarOpen,
         setSidebarOpen,
