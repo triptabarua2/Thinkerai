@@ -5,8 +5,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { fetch } from "expo/fetch";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   FlatList,
+  Modal,
   Platform,
+  ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -136,6 +140,9 @@ export default function ChatScreen() {
 
   // Founder Mode notification
   const [founderModeActive, setFounderModeActive] = useState(false);
+
+  // Three-dot chat menu
+  const [showChatMenu, setShowChatMenu] = useState(false);
 
   const initializedRef = useRef(false);
   const autoSentRef = useRef(false);
@@ -1094,8 +1101,12 @@ export default function ChatScreen() {
               <Feather name="clock" size={16} color={showVersionHistory ? colors.primary : colors.text} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: colors.card }]}>
-            <Feather name="more-horizontal" size={18} color={colors.text} />
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: colors.primary + "18" }]}
+            onPress={() => setShowChatMenu(true)}
+            activeOpacity={0.75}
+          >
+            <Feather name="more-horizontal" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -1104,9 +1115,10 @@ export default function ChatScreen() {
       <AgentPanel
         agentType={agentType}
         isStreaming={isStreaming}
-        onAgentChange={(a) => {
-          setAgentType(a);
-          setSelectedDomain(agentTypeToDomain(a));
+        onAgentChange={async (a) => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          const newChatId = await createConversation(`${AGENTS[a].name} Chat`, a);
+          router.replace({ pathname: "/chat/[id]", params: { id: newChatId } });
         }}
       />
 
@@ -1331,6 +1343,53 @@ export default function ChatScreen() {
         onStartFresh={handleFixLimitStartFresh}
         onDismiss={handleFixLimitDismiss}
       />
+
+      {/* Chat Options Menu */}
+      <Modal
+        transparent
+        animationType="slide"
+        visible={showChatMenu}
+        onRequestClose={() => setShowChatMenu(false)}
+        statusBarTranslucent
+      >
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setShowChatMenu(false)}
+        />
+        <View style={[styles.menuSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.menuHandle, { backgroundColor: colors.border }]} />
+          <Text style={[styles.menuTitle, { color: colors.text }]}>Chat Options</Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+            {[
+              { icon: "share-2",     label: "Share",          color: colors.primary,  action: () => { setShowChatMenu(false); Share.share({ message: conv?.title ?? "Chat", title: "Thinker AI Chat" }); } },
+              { icon: "edit-2",      label: "Rename",         color: colors.text,     action: () => { setShowChatMenu(false); Alert.alert("Rename Chat", "Enter a new name:", [{ text: "Cancel" }, { text: "Rename", onPress: (name?: string) => { if (name && id) updateConversation(id, { title: name }); } }], { plain: false } as any); } },
+              { icon: "star",        label: "Favourite",      color: "#F5A623",       action: () => { setShowChatMenu(false); if (id) updateConversation(id, { favourite: true } as any); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } },
+              { icon: "map-pin",     label: "Pin",            color: colors.text,     action: () => { setShowChatMenu(false); if (id) updateConversation(id, { pinned: true } as any); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } },
+              { icon: "user-plus",   label: "Add to Member",  color: colors.text,     action: () => { setShowChatMenu(false); Alert.alert("Add to Member", "Member sharing coming soon."); } },
+              { icon: "folder-plus", label: "Add Project",    color: colors.text,     action: () => { setShowChatMenu(false); Alert.alert("Add Project", "Project assignment coming soon."); } },
+              { icon: "search",      label: "Search Chat",    color: colors.text,     action: () => { setShowChatMenu(false); Alert.alert("Search", "In-chat search coming soon."); } },
+              { icon: "home",        label: "Add to Home",    color: colors.text,     action: () => { setShowChatMenu(false); Alert.alert("Add to Home", "Shortcut created on home screen."); } },
+              { icon: "archive",     label: "Archive",        color: colors.textSecondary, action: () => { setShowChatMenu(false); if (id) updateConversation(id, { archived: true } as any); router.back(); } },
+              { icon: "trash-2",     label: "Delete",         color: "#FF3B30",       action: () => { setShowChatMenu(false); Alert.alert("Delete Chat", "This chat will be permanently deleted.", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => router.back() }]); } },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.label}
+                style={[styles.menuRow, { borderBottomColor: colors.border }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.action(); }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: (item.color === "#FF3B30" ? "#FF3B30" : item.color === "#F5A623" ? "#F5A623" : colors.primary) + "15" }]}>
+                  <Feather name={item.icon as any} size={18} color={item.color} />
+                </View>
+                <Text style={[styles.menuLabel, { color: item.color }]}>{item.label}</Text>
+                <Feather name="chevron-right" size={16} color={colors.border} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1486,5 +1545,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     marginTop: 4,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  menuSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 36,
+    maxHeight: "80%",
+  },
+  menuHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  menuIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
   },
 });

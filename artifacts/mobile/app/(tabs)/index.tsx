@@ -251,7 +251,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Quick Actions Carousel */}
-        <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>QUICK ACTIONS</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textTertiary, marginTop: 24 }]}>QUICK ACTIONS</Text>
         <View style={{ width: visibleW, overflow: "hidden" }} {...panResponder.panHandlers}>
           <Animated.View style={{ flexDirection: "row", gap: cGap, transform: [{ translateX: stripX }] }}>
             {[-1, 0, 1, 2, 3].map((offset, pos) => {
