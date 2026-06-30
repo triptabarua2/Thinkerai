@@ -1,4 +1,4 @@
-import { llmStream } from "../lib/llm.js";
+import { llmStream, llmDualChat } from "../lib/llm.js";
 import { runIntentAgent, getLanguageName } from "../agents/intentAgent.js";
 import { runClarificationAgent, SIGNATURE_QUESTION } from "../agents/clarificationAgent.js";
 import { runStrategyAgent } from "../agents/strategyAgent.js";
@@ -434,31 +434,50 @@ export async function runThinkerCore(
     intentResult.intent === "chat";
 
   if (forceDirectAnswer) {
-    state.thinkCreditsUsed += 1;
+    // §6.3 — Dual-Model Verified Chat: 2 credits (one per model call)
+    state.thinkCreditsUsed += 2;
     try {
       const chatMessages: { role: "user" | "assistant"; content: string }[] = [
         ...history,
         { role: "user", content: message },
       ];
-      let rawContent = "";
-      await llmStream(DIRECT_CHAT_SYSTEM(lang), chatMessages, "mid", (text) => {
-        rawContent += text;
-        emit({ type: "content", text: sanitizeModelNames(text) });
+
+      emit({ type: "agent_start", agent: "verification", label: "Verifying response..." });
+
+      const dual = await llmDualChat(DIRECT_CHAT_SYSTEM(lang), chatMessages);
+
+      // Stream the verified answer word by word so the UX feels responsive
+      const words = sanitizeModelNames(dual.content).split(/(?<=\s)|(?=\s)/);
+      for (const chunk of words) {
+        emit({ type: "content", text: chunk });
+        // small yield so SSE flushes naturally
+        await new Promise((r) => setImmediate(r));
+      }
+
+      emitAnalytics(emit, "pipeline_complete", {
+        thinkingLevel: state.thinkingLevel,
+        creditsUsed: 2,
+        durationMs: Date.now() - startTime,
+        failoverCount: 0,
+        dualChatAgreed: dual.agreed,
+        dualChatTieBreaker: dual.usedTieBreaker,
       });
-      void rawContent;
     } catch {
+      // Fallback demo mode when no API keys configured
       const demo = `I'm Thinker AI. You asked: *${message}*\n\nI'm ready to help — connect an API key for full AI responses.`;
       for (const word of demo.split(" ")) {
         emit({ type: "content", text: " " + word });
         await new Promise((r) => setTimeout(r, 10));
       }
+      emitAnalytics(emit, "pipeline_complete", {
+        thinkingLevel: state.thinkingLevel,
+        creditsUsed: 0,
+        durationMs: Date.now() - startTime,
+        failoverCount: 0,
+        dualChatAgreed: false,
+        dualChatTieBreaker: false,
+      });
     }
-    emitAnalytics(emit, "pipeline_complete", {
-      thinkingLevel: state.thinkingLevel,
-      creditsUsed: 1,
-      durationMs: Date.now() - startTime,
-      failoverCount: 0,
-    });
     emit({ type: "done", status: "complete" });
     return;
   }

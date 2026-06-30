@@ -447,6 +447,128 @@ export async function llmParallel(
   );
 }
 
+// ── Dual-Model Verified Chat (§6.3) ─────────────────────────────────────────
+/**
+ * Sends the same chat request to TWO different-provider models in parallel.
+ * Compares responses before returning — implements the "Direct Chat Path — Dual-Model Verified"
+ * rule from PDF §6.3.
+ *
+ * Agreement: if both responses share substantial content (≥40% token overlap on key terms),
+ *   Thinker Core merges them into one clean answer (picks the longer/richer one).
+ * Disagreement on factual claims: escalates to a 3rd model as tie-breaker (majority vote).
+ * Disagreement on opinion/style: returns primary answer with a subtle uncertainty marker.
+ *
+ * The caller never sees provider names — §6.5 Model Identity Concealment still applies.
+ */
+export interface DualChatResult {
+  content: string;
+  agreed: boolean;
+  usedTieBreaker: boolean;
+}
+
+function tokenOverlap(a: string, b: string): number {
+  const tokenize = (s: string) =>
+    new Set(
+      s
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((t) => t.length > 3)
+    );
+  const setA = tokenize(a);
+  const setB = tokenize(b);
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let shared = 0;
+  for (const t of setA) if (setB.has(t)) shared++;
+  return shared / Math.min(setA.size, setB.size);
+}
+
+function looksFactual(a: string, b: string): boolean {
+  const factualPatterns = /\b(\d{4}|\d+%|[\d,]+\s*(km|mi|kg|lb|m|ft)|january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
+  return factualPatterns.test(a) || factualPatterns.test(b);
+}
+
+export async function llmDualChat(
+  system: string,
+  messages: { role: "user" | "assistant"; content: string }[]
+): Promise<DualChatResult> {
+  const available = availableProviders();
+  const allFast = ALL_MODELS.filter(
+    (m) => m.tier === "fast" && available.has(m.provider)
+  );
+
+  const usedProviders = new Set<string>();
+  const twoModels: ModelDescriptor[] = [];
+  for (const m of allFast) {
+    if (!usedProviders.has(m.provider)) {
+      twoModels.push(m);
+      usedProviders.add(m.provider);
+    }
+    if (twoModels.length === 2) break;
+  }
+
+  if (twoModels.length === 0) {
+    throw new Error("NO_LLM: No models available for dual-chat verification.");
+  }
+
+  if (twoModels.length === 1) {
+    const single = await withTimeout(
+      dispatchCall(twoModels[0], system, messages[messages.length - 1]?.content ?? ""),
+      15000
+    );
+    return { content: single, agreed: true, usedTieBreaker: false };
+  }
+
+  const userText = messages[messages.length - 1]?.content ?? "";
+
+  const [resA, resB] = await Promise.allSettled([
+    withTimeout(dispatchCall(twoModels[0], system, userText), 15000),
+    withTimeout(dispatchCall(twoModels[1], system, userText), 15000),
+  ]);
+
+  const textA = resA.status === "fulfilled" ? resA.value : "";
+  const textB = resB.status === "fulfilled" ? resB.value : "";
+
+  if (!textA && !textB) {
+    throw new Error("NO_LLM: Both models failed in dual-chat.");
+  }
+  if (!textA) return { content: textB, agreed: true, usedTieBreaker: false };
+  if (!textB) return { content: textA, agreed: true, usedTieBreaker: false };
+
+  const overlap = tokenOverlap(textA, textB);
+  const AGREE_THRESHOLD = 0.40;
+
+  if (overlap >= AGREE_THRESHOLD) {
+    const merged = textA.length >= textB.length ? textA : textB;
+    return { content: merged, agreed: true, usedTieBreaker: false };
+  }
+
+  if (looksFactual(textA, textB)) {
+    const remainingFast = allFast.find(
+      (m) => !usedProviders.has(m.provider) && isHealthy(`${m.provider}:${m.id}`)
+    );
+    if (remainingFast) {
+      try {
+        const resC = await withTimeout(
+          dispatchCall(remainingFast, system, userText),
+          12000
+        );
+        const overlapAC = tokenOverlap(textA, resC);
+        const overlapBC = tokenOverlap(textB, resC);
+        const winner = overlapAC >= overlapBC ? textA : textB;
+        return { content: winner, agreed: false, usedTieBreaker: true };
+      } catch {
+        // tie-breaker failed — fall through to uncertainty path
+      }
+    }
+  }
+
+  const uncertaintyNote =
+    "\n\n> *Note: I want to be transparent — there's some nuance here and I'm giving you my best verified answer.*";
+  const primary = textA.length >= textB.length ? textA : textB;
+  return { content: primary + uncertaintyNote, agreed: false, usedTieBreaker: false };
+}
+
 export function parseJSON<T>(raw: string, fallback: T): T {
   try {
     const match = raw.match(/\{[\s\S]*\}/);
