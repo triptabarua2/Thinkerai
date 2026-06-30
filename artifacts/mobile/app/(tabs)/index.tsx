@@ -407,6 +407,29 @@ export default function HomeScreen() {
 const INPUT_MIN_H = 32;
 const INPUT_MAX_H = 110;
 
+// Platform-safe floating shadows
+const floatShadow = Platform.select({
+  web: { boxShadow: "0 4px 12px rgba(0,0,0,0.12)" },
+  default: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+});
+
+const floatShadowLg = Platform.select({
+  web: { boxShadow: "0 6px 20px rgba(0,0,0,0.13)" },
+  default: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.13,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+});
+
 function HomeChatBar({
   colors,
   insets,
@@ -487,21 +510,15 @@ function HomeChatBar({
     : { position: "absolute", bottom: kbHeight, left: 0, right: 0 };
 
   return (
-    <View
-      style={[
-        barStyles.wrap,
-        positionStyle,
-        {
-          paddingBottom: insets.bottom + 8,
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-        },
-      ]}
-    >
-      {/* Profile icon — fades/slides away on focus */}
+    <View style={[barStyles.wrap, positionStyle, { paddingBottom: insets.bottom + 12 }]}>
+      {/* Profile icon — floating circle, fades away on focus */}
       <Animated.View style={{ width: profileWidth, opacity: profileOpacity, marginRight: profileMargin, overflow: "hidden" }}>
         <TouchableOpacity
-          style={[barStyles.profileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[
+            barStyles.profileBtn,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            floatShadow as any,
+          ]}
           onPress={onProfile}
           activeOpacity={0.75}
         >
@@ -509,8 +526,14 @@ function HomeChatBar({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Message box — spring-grows up to max height then scrolls inside */}
-      <View style={[barStyles.inputWrap, { backgroundColor: colors.card, borderColor, borderWidth: 1.5 }]}>
+      {/* Floating message box */}
+      <View
+        style={[
+          barStyles.inputWrap,
+          { backgroundColor: colors.card, borderColor, borderWidth: 1.5 },
+          floatShadowLg as any,
+        ]}
+      >
         <Animated.View style={{ flex: 1, height: heightAnim }}>
           <TextInput
             style={[barStyles.input, { color: colors.text, outlineStyle: "none" } as any]}
@@ -548,23 +571,22 @@ const barStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
   },
   profileBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   inputWrap: {
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    borderRadius: 20,
+    borderRadius: 26,
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
