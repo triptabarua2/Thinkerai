@@ -1,6 +1,20 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
+// Catch promise rejections that escape any try/catch block.
+// Node.js v15+ crashes the process by default — this keeps the server alive
+// and logs the problem instead.
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error({ reason, promise }, "Unhandled promise rejection — server kept alive");
+});
+
+// Catch synchronous exceptions that escape all error boundaries.
+// Log and exit cleanly so the process manager (e.g. Replit workflow) can restart.
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception — forcing clean exit");
+  process.exit(1);
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

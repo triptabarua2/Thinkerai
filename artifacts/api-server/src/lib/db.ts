@@ -9,6 +9,11 @@ function getPool(): InstanceType<typeof Pool> | null {
   if (!process.env["DATABASE_URL"]) return null;
   if (!_pool) {
     _pool = new Pool({ connectionString: process.env["DATABASE_URL"] });
+    // Without this listener, any idle-client error (DB restart, network
+    // glitch, etc.) would be an uncaught 'error' event and crash the process.
+    _pool.on("error", (err) => {
+      console.error("[db] Pool idle-client error (non-fatal):", err.message);
+    });
   }
   return _pool;
 }
