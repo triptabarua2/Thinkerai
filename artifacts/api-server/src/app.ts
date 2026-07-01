@@ -14,7 +14,8 @@ app.post(
     const signature = req.headers["stripe-signature"];
 
     if (!signature) {
-      return res.status(400).json({ error: "Missing stripe-signature header" });
+      res.status(400).json({ error: "Missing stripe-signature header" });
+      return;
     }
 
     try {

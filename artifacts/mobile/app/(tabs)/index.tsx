@@ -56,7 +56,7 @@ export default function HomeScreen() {
     profileSheetOpen,
     setProfileSheetOpen,
   } = useApp();
-  const PLAN_TIER = "free" as const;
+  const PLAN_TIER: string = "free";
   const userCanUsePro = PLAN_TIER === "pro" || PLAN_TIER === "founder";
   const PRO_TEAL = "#0D9488";
 

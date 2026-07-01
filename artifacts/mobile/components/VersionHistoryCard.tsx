@@ -7,6 +7,7 @@ export interface VersionItem {
   description: string;
   timestamp: number;
   artifactType: string;
+  content?: string;
 }
 
 interface Props {

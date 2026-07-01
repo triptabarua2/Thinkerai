@@ -227,7 +227,7 @@ Run Smart Clarification for this project request. Detect emotional tone, surface
       complete: parsed.complete ?? false,
       requirements: parsed.requirements ?? {},
       questions,
-      signatureQuestionNeeded: !signatureAnswered && intentType !== "chat" && (parsed.signatureQuestionNeeded ?? true),
+      signatureQuestionNeeded: !signatureAnswered && (parsed.signatureQuestionNeeded ?? true),
       constraintFindings: parsed.constraintFindings ?? {},
       assumptionFlags: parsed.assumptionFlags ?? [],
       goalDiscoveryMode,

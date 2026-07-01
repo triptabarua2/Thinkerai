@@ -558,7 +558,7 @@ export default function ChatScreen() {
     const rollbackMsg: Message = {
       id: genId(),
       role: "assistant",
-      content: `↩️ **Rolled back to Version ${versionNum}**\n\n${version.description}\n\n${version.content.slice(0, 500)}${version.content.length > 500 ? "\n\n*[content truncated — full version restored]*" : ""}`,
+      content: `↩️ **Rolled back to Version ${versionNum}**\n\n${version.description}${version.content ? `\n\n${version.content.slice(0, 500)}${version.content.length > 500 ? "\n\n*[content truncated — full version restored]*" : ""}` : ""}`,
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, rollbackMsg]);
@@ -1266,7 +1266,7 @@ export default function ChatScreen() {
                 <DecisionMemoryBanner
                   rule={decisionEvent.rule}
                   confirmation={decisionEvent.confirmation}
-                  colors={colors}
+                  colors={colors as unknown as Record<string, string>}
                 />
               )}
               {showVersionHistory && versionHistory.length > 0 && (
@@ -1274,7 +1274,7 @@ export default function ChatScreen() {
                   versions={versionHistory}
                   currentVersion={currentVersion}
                   onRollback={handleRollback}
-                  colors={colors}
+                  colors={colors as unknown as Record<string, string>}
                 />
               )}
               {clarifyState.status === "needed" && (
@@ -1301,7 +1301,7 @@ export default function ChatScreen() {
                   onApprove={handleBlueprintApprove}
                   onModify={handleBlueprintModify}
                   onStartOver={handleBlueprintStartOver}
-                  colors={colors}
+                  colors={colors as unknown as Record<string, string>}
                 />
               )}
               {clarifyState.status === "approval" && (

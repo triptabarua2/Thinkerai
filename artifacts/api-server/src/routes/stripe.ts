@@ -25,7 +25,8 @@ router.post("/billing/checkout", async (req, res) => {
   const { userId = "default", priceId, email } = req.body;
 
   if (!priceId) {
-    return res.status(400).json({ error: "priceId is required" });
+    res.status(400).json({ error: "priceId is required" });
+    return;
   }
 
   try {
@@ -65,7 +66,8 @@ router.get("/billing/credits/:userId", async (req, res) => {
   const db = getDb();
 
   if (!db) {
-    return res.status(503).json({ error: "Database not available" });
+    res.status(503).json({ error: "Database not available" });
+    return;
   }
 
   const [row] = await db
@@ -75,7 +77,8 @@ router.get("/billing/credits/:userId", async (req, res) => {
     .limit(1);
 
   if (!row) {
-    return res.status(404).json({ error: "User not found" });
+    res.status(404).json({ error: "User not found" });
+    return;
   }
 
   res.json({
@@ -155,7 +158,6 @@ router.post(
         .where(eq(userCreditsTable.userId, userId));
 
       await db!.insert(billingEventsTable).values({
-        id: `be-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         userId,
         eventType: event.type,
         planTierFrom: oldTier,

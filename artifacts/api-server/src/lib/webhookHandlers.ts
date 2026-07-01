@@ -25,7 +25,7 @@ export class WebhookHandlers {
     }
 
     const sync = await getStripeSync();
-    const event = await sync.processWebhook(payload, signature);
+    const event = await sync.processWebhook(payload, signature) as any;
 
     if (!event) return;
 

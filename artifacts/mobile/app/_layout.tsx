@@ -62,8 +62,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS === "android") {
       import("expo-navigation-bar").then((NavigationBar) => {
-        NavigationBar.setBackgroundColorAsync(bg);
-        NavigationBar.setButtonStyleAsync(isLight ? "dark" : "light");
+        NavigationBar.setStyle(isLight ? "light" : "dark");
       });
     }
   }, [isLight, bg]);
