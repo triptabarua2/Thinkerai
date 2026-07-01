@@ -3,9 +3,21 @@ import Svg, { Rect, Path, G } from "react-native-svg";
 
 interface Props {
   size?: number;
+  bare?: boolean;
 }
 
-export function ThinkerLogo({ size = 32 }: Props) {
+export function ThinkerLogo({ size = 32, bare = false }: Props) {
+  if (bare) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 100 100">
+        <Path
+          d="M50 5 L65 25 L80 25 L95 45 L65 45 L65 75 L50 95 L35 75 L35 45 L5 45 L20 25 L35 25 Z"
+          fill="#0B6E69"
+        />
+      </Svg>
+    );
+  }
+
   return (
     <Svg width={size} height={size} viewBox="0 0 500 500">
       <Rect width="500" height="500" rx="110" fill="#0B6E69" />

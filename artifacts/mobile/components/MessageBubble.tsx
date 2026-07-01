@@ -237,8 +237,7 @@ export const MessageBubble = React.memo(function MessageBubble({ message, onRelo
   return (
     <View style={[styles.aiWrapper, rtl && { alignItems: "flex-end" }]}>
       <View style={[styles.aiHeader, rtl && { flexDirection: "row-reverse" }]}>
-        <ThinkerLogo size={20} />
-        <Text style={[styles.aiHeaderText, { color: "#0B6E69" }]}>Thinker AI</Text>
+        <ThinkerLogo size={18} bare />
         {agent && (
           <View style={[styles.agentTag, rtl && { flexDirection: "row-reverse" }]}>
             <Feather name={agent.icon as any} size={10} color={agent.color} />
@@ -347,11 +346,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 6,
     marginLeft: 2,
-  },
-  aiHeaderText: {
-    fontSize: 13,
-    fontWeight: "700" as const,
-    letterSpacing: 0.1,
   },
   agentTag: {
     flexDirection: "row",
