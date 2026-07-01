@@ -129,6 +129,185 @@ function EditModal({
   );
 }
 
+// ─── Credits usage data (mock — replace with API) ────────────────────────────
+const CREDIT_BALANCE   = 260;
+const MONTHLY_ALLOC    = 1500;
+const MONTHLY_USED     = 1240;
+const DAILY_BURN       = 41; // avg credits/day
+
+const AGENT_USAGE = [
+  { label: "Builder",   icon: "tool",        credits: 420, color: "#0D9488" },
+  { label: "Research",  icon: "search",       credits: 280, color: "#6366F1" },
+  { label: "Strategy",  icon: "trending-up",  credits: 210, color: "#F59E0B" },
+  { label: "Planner",   icon: "map",          credits: 180, color: "#EC4899" },
+  { label: "Reviewer",  icon: "check-circle", credits: 95,  color: "#10B981" },
+  { label: "Clarify",   icon: "help-circle",  credits: 55,  color: "#94A3B8" },
+] as const;
+
+// last 7 days spend
+const WEEKLY = [28, 52, 38, 67, 41, 55, 48];
+const WEEK_DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+
+function estimateDaysRemaining(balance: number, dailyBurn: number) {
+  if (dailyBurn <= 0) return null;
+  const days = Math.floor(balance / dailyBurn);
+  if (days < 1) return "< 1 day";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
+// ─── CreditsUsageSection ──────────────────────────────────────────────────────
+function CreditsUsageSection() {
+  const colors = useColors();
+  const maxAgent = Math.max(...AGENT_USAGE.map((a) => a.credits));
+  const monthlyPct = Math.min(MONTHLY_USED / MONTHLY_ALLOC, 1);
+  const daysLeft = estimateDaysRemaining(CREDIT_BALANCE, DAILY_BURN);
+  const weekMax = Math.max(...WEEKLY);
+
+  // Animate bar widths on mount
+  const barAnims = useRef(AGENT_USAGE.map(() => new Animated.Value(0))).current;
+  const monthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const agentAnims = AGENT_USAGE.map((a, i) =>
+      Animated.timing(barAnims[i], {
+        toValue: a.credits / maxAgent,
+        duration: 600 + i * 80,
+        useNativeDriver: false,
+      })
+    );
+    Animated.parallel([
+      Animated.timing(monthAnim, {
+        toValue: monthlyPct,
+        duration: 700,
+        useNativeDriver: false,
+      }),
+      ...agentAnims,
+    ]).start();
+  }, []);
+
+  const dangerColor = monthlyPct > 0.85 ? colors.destructive : monthlyPct > 0.65 ? colors.warning : colors.success;
+
+  return (
+    <View style={styles.section}>
+      {/* Section header row */}
+      <View style={chartStyles.headerRow}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginTop: 0 }]}>CREDITS & USAGE</Text>
+        <View style={[chartStyles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Feather name="calendar" size={10} color={colors.textTertiary} />
+          <Text style={[chartStyles.pillText, { color: colors.textTertiary }]}>30 days</Text>
+        </View>
+      </View>
+
+      {/* Estimated time card */}
+      <View style={[chartStyles.estimateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Left — countdown */}
+        <View style={chartStyles.estimateLeft}>
+          <Text style={[chartStyles.estimateNum, { color: colors.text }]}>~{daysLeft}</Text>
+          <Text style={[chartStyles.estimateSub, { color: colors.textSecondary }]}>
+            remaining at {DAILY_BURN} cr/day
+          </Text>
+        </View>
+        {/* Right — balance badge */}
+        <View style={[chartStyles.balanceBadge, { backgroundColor: colors.primary + "18" }]}>
+          <Feather name="zap" size={14} color={colors.primary} />
+          <Text style={[chartStyles.balanceNum, { color: colors.primary }]}>{CREDIT_BALANCE}</Text>
+          <Text style={[chartStyles.balanceLabel, { color: colors.primary + "AA" }]}>credits left</Text>
+        </View>
+      </View>
+
+      {/* Monthly usage bar */}
+      <View style={[chartStyles.monthCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={chartStyles.monthRow}>
+          <Text style={[chartStyles.monthLabel, { color: colors.text }]}>Monthly usage</Text>
+          <Text style={[chartStyles.monthVal, { color: colors.textSecondary }]}>
+            {MONTHLY_USED.toLocaleString()} / {MONTHLY_ALLOC.toLocaleString()} cr
+          </Text>
+        </View>
+        <View style={[chartStyles.trackBg, { backgroundColor: colors.border }]}>
+          <Animated.View
+            style={[
+              chartStyles.trackFill,
+              {
+                backgroundColor: dangerColor,
+                width: monthAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+              },
+            ]}
+          />
+        </View>
+        <View style={chartStyles.monthFooter}>
+          <View style={[chartStyles.statusDot, { backgroundColor: dangerColor }]} />
+          <Text style={[chartStyles.monthFooterText, { color: colors.textSecondary }]}>
+            {Math.round(monthlyPct * 100)}% used this cycle · resets Jul 1
+          </Text>
+        </View>
+      </View>
+
+      {/* Weekly trend mini chart */}
+      <View style={[chartStyles.weekCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[chartStyles.weekTitle, { color: colors.text }]}>Last 7 days</Text>
+        <View style={chartStyles.weekBars}>
+          {WEEKLY.map((val, i) => {
+            const heightPct = val / weekMax;
+            const isToday = i === WEEKLY.length - 1;
+            return (
+              <View key={i} style={chartStyles.weekBarWrap}>
+                <View style={chartStyles.weekBarTrack}>
+                  <View
+                    style={[
+                      chartStyles.weekBar,
+                      {
+                        height: `${Math.round(heightPct * 100)}%`,
+                        backgroundColor: isToday ? colors.primary : colors.primary + "44",
+                        borderRadius: 3,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[chartStyles.weekDay, { color: isToday ? colors.primary : colors.textTertiary }]}>
+                  {WEEK_DAYS[i]}
+                </Text>
+                <Text style={[chartStyles.weekCr, { color: colors.textTertiary }]}>{val}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Per-agent horizontal bar chart */}
+      <View style={[chartStyles.agentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[chartStyles.weekTitle, { color: colors.text }]}>Credits by agent</Text>
+        {AGENT_USAGE.map((agent, i) => (
+          <View key={agent.label} style={chartStyles.agentRow}>
+            <View style={chartStyles.agentMeta}>
+              <View style={[chartStyles.agentDot, { backgroundColor: agent.color + "28" }]}>
+                <Feather name={agent.icon as any} size={11} color={agent.color} />
+              </View>
+              <Text style={[chartStyles.agentLabel, { color: colors.text }]}>{agent.label}</Text>
+            </View>
+            <View style={chartStyles.agentBarWrap}>
+              <View style={[chartStyles.agentTrack, { backgroundColor: colors.border }]}>
+                <Animated.View
+                  style={[
+                    chartStyles.agentFill,
+                    {
+                      backgroundColor: agent.color,
+                      width: barAnims[i].interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[chartStyles.agentCr, { color: colors.textSecondary }]}>
+                {agent.credits}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function SectionHeader({ title }: { title: string }) {
   const colors = useColors();
   return (
@@ -320,6 +499,9 @@ export default function ProfileScreen() {
             <StatCard value="Medium" label="Fav. level" icon="cpu" />
           </View>
         </View>
+
+        {/* Credits & Usage */}
+        <CreditsUsageSection />
 
         {/* Decision Memory */}
         <View style={styles.section}>
@@ -634,4 +816,124 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   connectedText: { fontSize: 11, fontWeight: "600" as const },
+});
+
+const chartStyles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  pillText: { fontSize: 11, fontWeight: "500" as const },
+
+  // Estimate card
+  estimateCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 10,
+  },
+  estimateLeft: { flex: 1 },
+  estimateNum: { fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.5 },
+  estimateSub: { fontSize: 12, marginTop: 2 },
+  balanceBadge: {
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    gap: 3,
+  },
+  balanceNum: { fontSize: 20, fontWeight: "800" as const },
+  balanceLabel: { fontSize: 10, fontWeight: "600" as const },
+
+  // Monthly usage
+  monthCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  monthRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  monthLabel: { fontSize: 13, fontWeight: "600" as const },
+  monthVal: { fontSize: 12 },
+  trackBg: { height: 8, borderRadius: 4, overflow: "hidden" },
+  trackFill: { height: 8, borderRadius: 4 },
+  monthFooter: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  monthFooterText: { fontSize: 11 },
+
+  // Weekly trend
+  weekCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  weekTitle: { fontSize: 13, fontWeight: "600" as const, marginBottom: 12 },
+  weekBars: { flexDirection: "row", gap: 6, alignItems: "flex-end" },
+  weekBarWrap: { flex: 1, alignItems: "center", gap: 4 },
+  weekBarTrack: { width: "100%", height: 56, justifyContent: "flex-end" },
+  weekBar: { width: "100%" },
+  weekDay: { fontSize: 10, fontWeight: "600" as const },
+  weekCr: { fontSize: 9 },
+
+  // Agent bars
+  agentCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  agentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  agentMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    width: 82,
+  },
+  agentDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  agentLabel: { fontSize: 12, fontWeight: "500" as const },
+  agentBarWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  agentTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  agentFill: { height: 8, borderRadius: 4 },
+  agentCr: { fontSize: 11, width: 28, textAlign: "right" },
 });
