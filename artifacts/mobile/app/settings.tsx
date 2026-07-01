@@ -179,7 +179,7 @@ function GeneralTab() {
       <SelectRow
         label="Default Thinking Level"
         value={thinkingLevel}
-        onPress={() => showPicker("Default Thinking Level", ["Auto", "Low (1 credit)", "Medium (9 credits)", "High (66 credits)", "Consensus (75 credits)"], thinkingLevel, setThinkingLevel)}
+        onPress={() => showPicker("Default Thinking Level", ["Auto", "Low (1 credit)", "Medium (9 credits)", "High (66 credits)", "Consensus (99 credits)"], thinkingLevel, setThinkingLevel)}
       />
       <SelectRow
         label="Default domain"

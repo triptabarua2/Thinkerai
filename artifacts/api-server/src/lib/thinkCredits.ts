@@ -40,7 +40,7 @@ export function estimateSessionCredits(thinkingLevel: ThinkingLevel): number {
     case "low": return 1;
     case "medium": return 9;
     case "high": return 66;
-    case "consensus": return 75;
+    case "consensus": return 99;
     default: return 1;
   }
 }
@@ -73,6 +73,6 @@ export function getThinkingLevelCredits(level: ThinkingLevel): number {
     case "low": return 1;
     case "medium": return 9;
     case "high": return 66;
-    case "consensus": return 75;
+    case "consensus": return 99;
   }
 }

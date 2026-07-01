@@ -21,7 +21,7 @@ const CREDIT_COSTS: Record<string, number> = {
   low: 1,
   medium: 9,
   high: 66,
-  consensus: 75,
+  consensus: 99,
 };
 
 const LEVEL_LABELS: Record<string, string> = {

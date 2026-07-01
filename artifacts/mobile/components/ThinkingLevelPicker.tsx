@@ -57,7 +57,7 @@ const LEVELS: LevelDef[] = [
     label: "Consensus",
     icon: "users",
     dots: 4,
-    credits: "~75 credits",
+    credits: "~99 credits",
     description: "Multi-model validation, startup ideas",
     color: "#E6A500",
   },

@@ -69,7 +69,7 @@ Pool health: `GET /api/healthz/pool`
 - Failover is always free (0 credits to user)
 
 ### Think Credits (PDF §21)
-- Low=1cr, Medium=9cr, High=66cr, Consensus=75cr
+- Low=1cr, Medium=9cr, High=66cr, Consensus=99cr
 - Free Trial: 50 (one-time), Pro: 1500/month, Founder: 5000/month
 - Confirm required for any action >3 credits
 - Deduct on completion, not dispatch
