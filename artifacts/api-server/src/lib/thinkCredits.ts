@@ -36,7 +36,13 @@ export const PLAN_CREDIT_RATE: Record<PlanTier, number> = {
 };
 
 export function estimateSessionCredits(thinkingLevel: ThinkingLevel): number {
-  return getThinkingLevelCredits(thinkingLevel);
+  switch (thinkingLevel) {
+    case "low": return 1;
+    case "medium": return 9;
+    case "high": return 66;
+    case "consensus": return 75;
+    default: return 1;
+  }
 }
 
 export function requiresConfirmation(credits: number): boolean {
@@ -65,8 +71,8 @@ export function isFeatureGated(feature: string, tier: PlanTier): boolean {
 export function getThinkingLevelCredits(level: ThinkingLevel): number {
   switch (level) {
     case "low": return 1;
-    case "medium": return 3;
-    case "high": return 10;
-    case "consensus": return 30;
+    case "medium": return 9;
+    case "high": return 66;
+    case "consensus": return 75;
   }
 }

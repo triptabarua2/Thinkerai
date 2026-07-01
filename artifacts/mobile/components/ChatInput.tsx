@@ -19,9 +19,9 @@ const INPUT_MAX_H = 120;
 
 const CREDIT_COSTS: Record<string, number> = {
   low: 1,
-  medium: 3,
-  high: 10,
-  consensus: 30,
+  medium: 9,
+  high: 66,
+  consensus: 75,
 };
 
 const LEVEL_LABELS: Record<string, string> = {

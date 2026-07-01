@@ -107,7 +107,7 @@ export default function ChatScreen() {
   // Credit confirmation
   const [creditModalVisible, setCreditModalVisible] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
-  const CREDIT_COST: Record<ThinkingLevel, number> = { low: 1, medium: 3, high: 10, consensus: 30 };
+  const CREDIT_COST: Record<ThinkingLevel, number> = { low: 1, medium: 9, high: 66, consensus: 75 };
   const CREDIT_BALANCE = 500; // TODO: fetch from user profile
 
   // Fix counters
