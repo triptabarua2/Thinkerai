@@ -66,9 +66,7 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<"agent" | "upgrade">("agent");
 
   useEffect(() => {
-    AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
-      if (!val) router.replace("/onboarding" as any);
-    });
+    AsyncStorage.setItem(ONBOARDING_KEY, "true");
   }, []);
 
   async function handleQuickAction(agentType: AgentType) {

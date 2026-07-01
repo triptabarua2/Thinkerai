@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -157,6 +158,18 @@ export function ChatInput({
           hitSlop={8}
         >
           <Feather name="paperclip" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/voice" as any);
+          }}
+          activeOpacity={0.6}
+          hitSlop={8}
+        >
+          <Feather name="mic" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
         <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
