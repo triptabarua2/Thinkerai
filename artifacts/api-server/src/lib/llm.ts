@@ -28,6 +28,42 @@ export function langInstruction(lang: string): string {
   return `\n\nLANGUAGE RULE (§17): The user's detected language is "${lang}". You MUST respond in that language for all user-facing text — questions, explanations, summaries, and the "reason" field. JSON structure keys and any generated code (variable names, functions, file names) must remain in English. Do not mix languages within a single sentence.`;
 }
 
+// ── §6.5 Model Identity Concealment ─────────────────────────────────────────
+// Assigns stable, generic slot labels to provider:model keys so that no real
+// model or provider name ever appears in logs, DB, errors, or failover entries.
+// Labels are deterministic within a process lifetime (same key → same label).
+const _slotRegistry = new Map<string, string>();
+const _slotAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function maskModelKey(providerModelKey: string): string {
+  const existing = _slotRegistry.get(providerModelKey);
+  if (existing) return existing;
+  const idx = _slotRegistry.size;
+  const label =
+    idx < _slotAlphabet.length
+      ? `Slot-${_slotAlphabet[idx]}`
+      : `Slot-${idx + 1}`;
+  _slotRegistry.set(providerModelKey, label);
+  return label;
+}
+
+// Pre-warm slots in a fixed, deterministic order so labels stay consistent
+// across restarts (order matches ALL_MODELS declaration below).
+const _SLOT_INIT_ORDER = [
+  "anthropic:claude-haiku-4-5",
+  "anthropic:claude-sonnet-4-6",
+  "anthropic:claude-opus-4-8",
+  "openai:gpt-4o-mini",
+  "openai:gpt-4o",
+  "deepseek:deepseek-chat",
+  "gemini:gemini-1.5-flash",
+  "gemini:gemini-1.5-pro",
+];
+_SLOT_INIT_ORDER.forEach((k) => maskModelKey(k));
+
+/** Returns the generic slot label for a provider:model key (§6.5). */
+export { maskModelKey };
+
 // ── Pool health tracking ────────────────────────────────────────────────────
 interface PoolHealthRecord {
   calls: number;
@@ -159,7 +195,7 @@ async function callOpenAINonStream(model: string, system: string, user: string):
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     }),
   });
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`MODEL_HTTP_${res.status}`);
   const json = await res.json() as { choices: { message: { content: string } }[] };
   return json.choices?.[0]?.message?.content ?? "";
 }
@@ -175,7 +211,7 @@ async function callDeepSeekNonStream(system: string, user: string): Promise<stri
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     }),
   });
-  if (!res.ok) throw new Error(`DeepSeek HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`MODEL_HTTP_${res.status}`);
   const json = await res.json() as { choices: { message: { content: string } }[] };
   return json.choices?.[0]?.message?.content ?? "";
 }
@@ -193,7 +229,7 @@ async function callGeminiNonStream(model: string, system: string, user: string):
       }),
     }
   );
-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`MODEL_HTTP_${res.status}`);
   const json = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   return json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
@@ -278,12 +314,13 @@ export async function llmCall(
       excludeModels.add(modelKey);
 
       // Log failover for observability (§9.2 failover_cost, §10.6)
+      // §6.5: mask real provider:model keys to generic slot labels before emitting
       const nextPool = buildPool(tier, excludeModels);
       if (nextPool.length > 0 && options?.onFailover) {
         options.onFailover({
           agent: "unknown",
-          failedModel,
-          replacementModel: `${nextPool[0].provider}:${nextPool[0].id}`,
+          failedModel: maskModelKey(failedModel),
+          replacementModel: maskModelKey(`${nextPool[0].provider}:${nextPool[0].id}`),
           timestamp: Date.now(),
           peerAuditUsed: !!partialOutput,
         });
@@ -329,7 +366,7 @@ async function streamOpenAI(
       messages: [{ role: "system", content: system }, ...messages],
     }),
   });
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`MODEL_HTTP_${res.status}`);
   const reader = res.body?.getReader();
   if (!reader) throw new Error("no body");
   const dec = new TextDecoder();
@@ -368,7 +405,7 @@ async function streamDeepSeek(
       messages: [{ role: "system", content: system }, ...messages],
     }),
   });
-  if (!res.ok) throw new Error(`DeepSeek HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`MODEL_HTTP_${res.status}`);
   const reader = res.body?.getReader();
   if (!reader) throw new Error("no body");
   const dec = new TextDecoder();
@@ -590,19 +627,28 @@ export function parseJSON<T>(raw: string, fallback: T): T {
   }
 }
 
-/** Returns list of currently-configured providers for observability. */
-export function getActiveProviders(): string[] {
-  return [...availableProviders()];
+/**
+ * Returns the count of currently-configured model pools.
+ * §6.5: provider names are never exposed — callers only receive a count.
+ */
+export function getActivePoolCount(): number {
+  return availableProviders().size;
 }
 
-/** Returns pool snapshot for a tier — for health dashboard (§10.6). */
-export function getPoolSnapshot(tier: ModelTier): { provider: string; model: string; healthy: boolean }[] {
+/**
+ * Returns pool snapshot for a tier — for health dashboard (§10.6).
+ * §6.5: real provider/model names are masked to generic slot labels.
+ * Callers and UI must never display the raw provider or model id.
+ */
+export function getPoolSnapshot(tier: ModelTier): { slot: string; healthy: boolean }[] {
   const available = availableProviders();
   return ALL_MODELS
     .filter((m) => m.tier === tier && available.has(m.provider))
-    .map((m) => ({
-      provider: m.provider,
-      model: m.id,
-      healthy: isHealthy(`${m.provider}:${m.id}`),
-    }));
+    .map((m) => {
+      const key = `${m.provider}:${m.id}`;
+      return {
+        slot: maskModelKey(key),
+        healthy: isHealthy(key),
+      };
+    });
 }

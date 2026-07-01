@@ -86,6 +86,10 @@ export async function saveAgentLog(data: {
   clarificationDepth?: number;
   signatureQAnswered?: boolean;
   errorDetail?: string;
+  // §6.5 — only generic slot labels (e.g. "Slot-A") may be stored here,
+  // never real model or provider names.
+  modelSlot?: string;
+  providerSlot?: string;
 }): Promise<void> {
   const pool = getPool();
   if (!pool) return;
@@ -93,8 +97,9 @@ export async function saveAgentLog(data: {
     `INSERT INTO agent_logs (
       conversation_id, pipeline_state_id, agent_name, input_summary,
       output_summary, duration_ms, status, confidence, retry_count,
-      failover_cost, clarification_depth, signature_q_answered, error_detail
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      failover_cost, clarification_depth, signature_q_answered, error_detail,
+      model_used, provider_used
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
     [
       data.conversationId,
       data.pipelineStateId ?? null,
@@ -109,6 +114,8 @@ export async function saveAgentLog(data: {
       data.clarificationDepth ?? null,
       data.signatureQAnswered ?? null,
       data.errorDetail ?? null,
+      data.modelSlot ?? null,
+      data.providerSlot ?? null,
     ]
   );
 }

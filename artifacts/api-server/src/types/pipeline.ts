@@ -77,13 +77,16 @@ export interface RoutingHistoryEntry {
   agent: string;
   next_action: NextAction;
   reason: string;
+  /** §6.5 — must be a generic slot label (e.g. "Slot-A"), never a real model/provider name. */
   model_used?: string;
   timestamp: number;
 }
 
 export interface FailoverLogEntry {
   agent: string;
+  /** §6.5 — generic slot label only (e.g. "Slot-A"), never a real model/provider name. */
   failed_model: string;
+  /** §6.5 — generic slot label only (e.g. "Slot-B"), never a real model/provider name. */
   replacement_model: string;
   timestamp: number;
   peer_audit_result?: string;

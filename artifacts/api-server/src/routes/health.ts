@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
-import { getActiveProviders, getPoolSnapshot } from "../lib/llm.js";
+import { getActivePoolCount, getPoolSnapshot } from "../lib/llm.js";
 
 const router: IRouter = Router();
 
@@ -10,22 +10,22 @@ router.get("/healthz", (_req, res) => {
 });
 
 // PDF §10.6 — Resilience observability: pool health dashboard
+// §6.5: no provider or model names are exposed — only counts and generic slot labels.
 router.get("/healthz/pool", (_req, res) => {
-  const providers = getActiveProviders();
+  const poolCount = getActivePoolCount();
   res.json({
     status: "ok",
-    activeProviders: providers,
-    providerCount: providers.length,
+    poolCount,
     pools: {
       fast: getPoolSnapshot("fast"),
       mid: getPoolSnapshot("mid"),
       strong: getPoolSnapshot("strong"),
     },
-    ready: providers.length > 0,
+    ready: poolCount > 0,
     message:
-      providers.length === 0
-        ? "No AI providers configured. Add at least one: ANTHROPIC_API_KEY, OPENAI_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY."
-        : `${providers.length} provider(s) active: ${providers.join(", ")}`,
+      poolCount === 0
+        ? "No AI pools configured. Add at least one provider key via environment secrets."
+        : `${poolCount} pool(s) active.`,
   });
 });
 

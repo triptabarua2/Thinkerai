@@ -59,9 +59,9 @@ const SLIDES: Slide[] = [
     subtitle: "Control how deep Thinker AI goes. Simple questions get instant answers. Big projects get the full treatment.",
     bullets: [
       { icon: "zap", text: "Low — instant answer, 1 credit", color: "#10B981" },
-      { icon: "cpu", text: "Medium — analysis + research, ~9 credits", color: TEAL_LIGHT },
-      { icon: "layers", text: "High — full 13-agent pipeline, ~66 credits", color: TEAL },
-      { icon: "users", text: "Consensus — multi-model vote, ~75 credits", color: "#8B5CF6" },
+      { icon: "cpu", text: "Medium — analysis + research, ~3 credits", color: TEAL_LIGHT },
+      { icon: "layers", text: "High — full 13-agent pipeline, ~10 credits", color: TEAL },
+      { icon: "users", text: "Consensus — multi-model vote, ~30 credits", color: "#8B5CF6" },
     ],
   },
   {
