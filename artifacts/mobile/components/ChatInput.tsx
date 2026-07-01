@@ -14,8 +14,8 @@ import {
 import { AGENTS, type AgentType } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 
-const INPUT_MIN_H = 36;
-const INPUT_MAX_H = 120;
+const INPUT_MIN_H = 52;
+const INPUT_MAX_H = 180;
 
 const CREDIT_COSTS: Record<string, number> = {
   low: 1,
@@ -247,16 +247,16 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "flex-end",
-    borderRadius: 28,
+    borderRadius: 32,
     borderWidth: 1,
     marginHorizontal: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 6,
   },
   iconBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -265,8 +265,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   input: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 25,
     paddingTop: 0,
     paddingBottom: 0,
     paddingHorizontal: 4,
