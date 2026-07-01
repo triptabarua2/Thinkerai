@@ -14,6 +14,7 @@ import {
 
 import { AGENTS, type AgentType } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
+import { setVoiceCallback } from "@/lib/voiceStore";
 
 const INPUT_MIN_H = 52;
 const INPUT_MAX_H = 180;
@@ -164,6 +165,9 @@ export function ChatInput({
           style={styles.iconBtn}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setVoiceCallback((transcribed) => {
+              if (transcribed.trim()) setText(transcribed.trim());
+            });
             router.push("/voice" as any);
           }}
           activeOpacity={0.6}

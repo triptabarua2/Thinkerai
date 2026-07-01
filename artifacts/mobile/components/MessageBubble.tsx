@@ -15,6 +15,7 @@ import type { Message } from "@/context/AppContext";
 import { AGENTS } from "@/lib/agents";
 import { useColors } from "@/hooks/useColors";
 import { isRTL } from "@/hooks/useRTL";
+import { ThinkerLogo } from "@/components/ThinkerLogo";
 
 const USER_TEAL = "#0D9488";
 const USER_TEAL_DARK = "#0F766E";
@@ -235,12 +236,16 @@ export const MessageBubble = React.memo(function MessageBubble({ message, onRelo
 
   return (
     <View style={[styles.aiWrapper, rtl && { alignItems: "flex-end" }]}>
-      {agent && (
-        <View style={[styles.agentTag, rtl && { flexDirection: "row-reverse" }]}>
-          <Feather name={agent.icon as any} size={10} color={agent.color} />
-          <Text style={[styles.agentTagText, { color: agent.color }]}>{agent.shortName}</Text>
-        </View>
-      )}
+      <View style={[styles.aiHeader, rtl && { flexDirection: "row-reverse" }]}>
+        <ThinkerLogo size={20} />
+        <Text style={[styles.aiHeaderText, { color: "#0B6E69" }]}>Thinker AI</Text>
+        {agent && (
+          <View style={[styles.agentTag, rtl && { flexDirection: "row-reverse" }]}>
+            <Feather name={agent.icon as any} size={10} color={agent.color} />
+            <Text style={[styles.agentTagText, { color: agent.color }]}>{agent.shortName}</Text>
+          </View>
+        )}
+      </View>
 
       <View style={{ textAlign } as any}>
         <MessageContent
@@ -336,15 +341,29 @@ const styles = StyleSheet.create({
     maxWidth: "92%",
     alignSelf: "flex-start",
   },
+  aiHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+    marginLeft: 2,
+  },
+  aiHeaderText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    letterSpacing: 0.1,
+  },
   agentTag: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 5,
-    marginLeft: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: "rgba(11,110,105,0.1)",
   },
   agentTagText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600" as const,
     letterSpacing: 0.3,
   },

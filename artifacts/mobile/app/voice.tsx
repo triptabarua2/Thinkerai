@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThinkerLogo } from "@/components/ThinkerLogo";
+import { callVoiceCallback, clearVoiceCallback } from "@/lib/voiceStore";
 
 const TEAL = "#0B6E69";
 const TEAL_LIGHT = "#14B8A6";
@@ -125,37 +126,118 @@ function CorePulse() {
   );
 }
 
-type VoiceState = "idle" | "listening" | "thinking" | "speaking";
+type VoiceState = "idle" | "listening" | "processing" | "done";
 
 const STATE_LABELS: Record<VoiceState, string> = {
   idle: "Tap to speak",
   listening: "Listening...",
-  thinking: "Analyzing your goal...",
-  speaking: "Thinker AI is responding...",
+  processing: "Got it — processing...",
+  done: "Done!",
 };
 
 export default function VoiceScreen() {
   const insets = useSafeAreaInsets();
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [transcript, setTranscript] = useState("");
+  const transcriptRef = useRef("");
+  const recognitionRef = useRef<any>(null);
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
   const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
-  function handleTap() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (voiceState === "idle") {
-      setVoiceState("listening");
-      setTimeout(() => setVoiceState("thinking"), 3000);
-      setTimeout(() => setVoiceState("speaking"), 5500);
-      setTimeout(() => setVoiceState("idle"), 9000);
-    } else {
-      setVoiceState("idle");
+  function stopRecognition() {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
     }
   }
 
   function handleClose() {
+    stopRecognition();
+    clearVoiceCallback();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   }
+
+  function startListening() {
+    if (Platform.OS !== "web") {
+      setVoiceState("listening");
+      setTimeout(() => {
+        setVoiceState("processing");
+        setTimeout(() => {
+          setVoiceState("idle");
+        }, 1000);
+      }, 3000);
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceState("idle");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "bn-BD,en-US";
+
+    recognition.onstart = () => {
+      setVoiceState("listening");
+      setTranscript("");
+    };
+
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      let final = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      const current = final || interim;
+      transcriptRef.current = current;
+      setTranscript(current);
+    };
+
+    recognition.onend = () => {
+      setVoiceState("processing");
+      recognitionRef.current = null;
+      const finalText = transcriptRef.current;
+      setTimeout(() => {
+        if (finalText.trim()) {
+          callVoiceCallback(finalText.trim());
+        }
+        setVoiceState("done");
+        setTimeout(() => router.back(), 300);
+      }, 500);
+    };
+
+    recognition.onerror = () => {
+      setVoiceState("idle");
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function handleTap() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (voiceState === "idle") {
+      startListening();
+    } else if (voiceState === "listening") {
+      stopRecognition();
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      stopRecognition();
+    };
+  }, []);
 
   return (
     <TouchableOpacity
@@ -163,7 +245,6 @@ export default function VoiceScreen() {
       activeOpacity={1}
       onPress={handleTap}
     >
-      {/* Close button */}
       <View style={[styles.topBar, { paddingTop: topPad + 8 }]}>
         <TouchableOpacity
           style={styles.closeBtn}
@@ -177,16 +258,13 @@ export default function VoiceScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Center — logo with Core Pulse */}
       <View style={styles.center}>
         <CorePulse />
-
         <Text style={styles.appName}>Thinker AI</Text>
         <Text style={styles.tagline}>Think Beyond Intelligence</Text>
       </View>
 
-      {/* Wave animation — only visible when active */}
-      {voiceState !== "idle" && (
+      {voiceState === "listening" && (
         <View style={styles.waveRow}>
           {WAVE_HEIGHTS.map((h, i) => (
             <WaveBar key={i} height={h} delay={i * 60} />
@@ -194,28 +272,31 @@ export default function VoiceScreen() {
         </View>
       )}
 
-      {/* State label */}
+      {transcript.trim().length > 0 && (
+        <View style={styles.transcriptBox}>
+          <Text style={styles.transcriptText}>{transcript}</Text>
+        </View>
+      )}
+
       <View style={styles.stateBox}>
         <Text style={styles.stateLabel}>{STATE_LABELS[voiceState]}</Text>
-        {voiceState !== "idle" && (
+        {voiceState === "listening" && (
           <Text style={styles.stopHint}>Tap anywhere to stop</Text>
         )}
       </View>
 
-      {/* Mic indicator */}
       <View style={styles.micRow}>
         <View
           style={[
             styles.micBtn,
             {
-              backgroundColor:
-                voiceState === "listening" ? TEAL : TEAL + "30",
+              backgroundColor: voiceState === "listening" ? TEAL : TEAL + "30",
               borderColor: voiceState === "listening" ? TEAL_LIGHT : TEAL + "50",
             },
           ]}
         >
           <Feather
-            name={voiceState === "idle" ? "mic" : "mic"}
+            name="mic"
             size={26}
             color={voiceState === "listening" ? "#F9FAFB" : TEXT_MID}
           />
@@ -288,7 +369,24 @@ const styles = StyleSheet.create({
     gap: 5,
     height: 72,
     paddingHorizontal: 24,
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  transcriptBox: {
+    marginHorizontal: 32,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: TEAL + "20",
+    borderWidth: 1,
+    borderColor: TEAL + "50",
+    maxWidth: 320,
+  },
+  transcriptText: {
+    color: TEXT,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
   },
   stateBox: {
     alignItems: "center",
