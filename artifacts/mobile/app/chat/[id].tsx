@@ -175,6 +175,8 @@ export default function ChatScreen() {
   }
 
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
+  // Track which thinking levels the user has already confirmed (credit modal shown once per level per session)
+  const creditConfirmedLevels = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (q && !autoSentRef.current) {
@@ -228,8 +230,8 @@ export default function ChatScreen() {
       updateConversation(id, { medium_fix_count: next });
     }
 
-    // Credit gate for expensive thinking levels
-    if (thinkingLevel !== "low" && CREDIT_COST[thinkingLevel] > 3) {
+    // Credit gate — show confirmation once per thinking level per session
+    if (thinkingLevel !== "low" && CREDIT_COST[thinkingLevel] > 3 && !creditConfirmedLevels.current.has(thinkingLevel)) {
       setPendingMessage(text);
       setCreditModalVisible(true);
       return;
@@ -239,6 +241,8 @@ export default function ChatScreen() {
 
   async function handleCreditConfirm() {
     setCreditModalVisible(false);
+    // Remember this level — don't ask again this session
+    creditConfirmedLevels.current.add(thinkingLevel);
     await sendMessage(pendingMessage);
     setPendingMessage("");
   }
@@ -611,8 +615,6 @@ export default function ChatScreen() {
   async function sendMessage(text: string, displayText?: string) {
     if (!id) return;
     const currentMessages = [...messages];
-    const detected = detectAgentType(displayText ?? text);
-    if (messages.length === 0) setAgentType(detected);
 
     const userMsg: Message = {
       id: genId(),
@@ -631,7 +633,7 @@ export default function ChatScreen() {
     setPipelineLabel("");
     setDecisionEvent(null);
 
-    const activeAgent = messages.length === 0 ? detected : agentType;
+    const activeAgent = agentType;
 
     try {
       const baseUrl = getBaseUrl();
