@@ -558,11 +558,7 @@ function HomeChatBar({
       {/* Profile icon — floating circle, fades away on focus */}
       <Animated.View style={{ width: profileWidth, opacity: profileOpacity, marginRight: profileMargin, overflow: "hidden" }}>
         <TouchableOpacity
-          style={[
-            barStyles.profileBtn,
-            { backgroundColor: colors.card, borderColor: colors.border },
-            floatShadow as any,
-          ]}
+          style={[barStyles.profileBtn, { backgroundColor: colors.card }]}
           onPress={onProfile}
           activeOpacity={0.75}
         >
@@ -621,7 +617,6 @@ const barStyles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
