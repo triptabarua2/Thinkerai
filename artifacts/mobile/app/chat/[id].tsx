@@ -3,7 +3,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { fetch } from "expo/fetch";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -155,24 +155,33 @@ export default function ChatScreen() {
     }
   }, [conv]);
 
-  function handleReloadMessage(msg: import("@/context/AppContext").Message) {
+  const handleReloadMessage = useCallback((msg: import("@/context/AppContext").Message) => {
     if (isStreaming) return;
     handleSendRef.current(msg.content);
-  }
+  }, [isStreaming]);
 
-  function handleRetryAssistant(msg: import("@/context/AppContext").Message) {
+  const handleRetryAssistant = useCallback((msg: import("@/context/AppContext").Message) => {
     if (isStreaming) return;
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (lastUser) handleSendRef.current(lastUser.content);
-  }
+  }, [isStreaming, messages]);
 
-  function handleEditMessage(msg: import("@/context/AppContext").Message) {
+  const handleEditMessage = useCallback((_msg: import("@/context/AppContext").Message) => {
     /* editing is surfaced via the input — future: pre-fill input */
-  }
+  }, []);
 
-  function handleReplyMessage(msg: import("@/context/AppContext").Message) {
+  const handleReplyMessage = useCallback((_msg: import("@/context/AppContext").Message) => {
     /* reply: future implementation */
-  }
+  }, []);
+
+  const renderMessageItem = useCallback(({ item }: { item: import("@/context/AppContext").Message }) => (
+    <MessageBubble
+      message={item}
+      onReload={item.role === "user" ? handleReloadMessage : handleRetryAssistant}
+      onEdit={item.role === "user" ? handleEditMessage : undefined}
+      onReply={item.role === "assistant" ? handleReplyMessage : undefined}
+    />
+  ), [handleReloadMessage, handleRetryAssistant, handleEditMessage, handleReplyMessage]);
 
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
   // Track which thinking levels the user has already confirmed (credit modal shown once per level per session)
@@ -1164,15 +1173,13 @@ export default function ChatScreen() {
         <FlatList
           data={reversedMessages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <MessageBubble
-              message={item}
-              onReload={item.role === "user" ? handleReloadMessage : handleRetryAssistant}
-              onEdit={item.role === "user" ? handleEditMessage : undefined}
-              onReply={item.role === "assistant" ? handleReplyMessage : undefined}
-            />
-          )}
+          renderItem={renderMessageItem}
           inverted={messages.length > 0}
+          removeClippedSubviews={Platform.OS !== "web"}
+          maxToRenderPerBatch={8}
+          windowSize={10}
+          initialNumToRender={12}
+          updateCellsBatchingPeriod={30}
           ListHeaderComponent={
             <>
               {showTyping && !pipelineActive && <TypingIndicator />}

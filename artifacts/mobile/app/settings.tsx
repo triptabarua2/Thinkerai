@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Platform,
@@ -607,7 +607,16 @@ function AdvancedTab() {
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabId>("general");
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<TabId>(
+    TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : "general"
+  );
+
+  useEffect(() => {
+    if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam as TabId);
+    }
+  }, [tabParam]);
 
   const tabContent: Record<TabId, React.ReactNode> = {
     general: <GeneralTab />,

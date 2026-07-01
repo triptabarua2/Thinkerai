@@ -377,6 +377,10 @@ export default function HomeScreen() {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+            maxToRenderPerBatch={10}
+            windowSize={8}
+            initialNumToRender={12}
+            removeClippedSubviews={Platform.OS !== "web"}
             renderItem={({ item }) => {
               const isSelected = selectedAgent === item.id;
               const isPro = item.planTier === "pro";

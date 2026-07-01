@@ -160,7 +160,7 @@ function MessageContent({
   );
 }
 
-export function MessageBubble({ message, onReload, onEdit, onReply }: Props) {
+export const MessageBubble = React.memo(function MessageBubble({ message, onReload, onEdit, onReply }: Props) {
   const colors = useColors();
   const isUser = message.role === "user";
   const agent = message.agentType ? AGENTS[message.agentType] : null;
@@ -291,7 +291,11 @@ export function MessageBubble({ message, onReload, onEdit, onReply }: Props) {
       </View>
     </View>
   );
-}
+}, (prev, next) =>
+  prev.message.id === next.message.id &&
+  prev.message.content === next.message.content &&
+  prev.message.role === next.message.role
+);
 
 function ActionBtn({
   icon,
