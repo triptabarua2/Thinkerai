@@ -1,4 +1,5 @@
 import { llmStream, llmDualChat } from "../lib/llm.js";
+import { saveAgentLog, saveVersionHistory } from "../lib/db.js";
 import { runIntentAgent, getLanguageName } from "../agents/intentAgent.js";
 import { runClarificationAgent, SIGNATURE_QUESTION } from "../agents/clarificationAgent.js";
 import { runStrategyAgent } from "../agents/strategyAgent.js";
@@ -173,10 +174,50 @@ export async function runThinkerCore(
     currentVersion?: number;
     imageAttemptNumber?: number;
     imageApproved?: boolean;
+    conversationId?: string;
+    pipelineStateId?: string;
   }
 ): Promise<void> {
   const startTime = Date.now();
   const planTier: PlanTier = options?.planTier ?? "free";
+  const conversationId = options?.conversationId;
+  const pipelineStateId = options?.pipelineStateId;
+
+  // ── DB persistence helpers (fire-and-forget, never block pipeline) ──────
+  function persistLog(log: AgentLog): void {
+    logAgent(state, log);
+    if (conversationId) {
+      saveAgentLog({
+        conversationId,
+        pipelineStateId,
+        agentName: log.agent_name,
+        inputSummary: log.input_summary,
+        outputSummary: log.output_summary,
+        durationMs: log.duration_ms,
+        status: log.status,
+        confidence: log.confidence,
+        retryCount: log.retry_count,
+        failoverCost: log.failover_cost,
+        clarificationDepth: log.clarification_depth,
+        signatureQAnswered: log.signature_q_answered,
+        errorDetail: log.error_detail,
+      }).catch(() => {});
+    }
+  }
+
+  function persistVersion(description: string): number {
+    const versionNum = saveVersion(state, description, planTier);
+    if (conversationId && state.builderOutput) {
+      saveVersionHistory({
+        conversationId,
+        versionNumber: versionNum,
+        content: state.builderOutput.content,
+        artifactType: state.builderOutput.artifactType,
+        description,
+      }).catch(() => {});
+    }
+    return versionNum;
+  }
 
   // ── Fix Limit Enforcement (Section 9.5) — server-side guard ──────────────
   if (options?.fixType === "medium" && (options?.medium_fix_count ?? 0) >= FIX_LIMITS.medium) {
@@ -340,7 +381,7 @@ export async function runThinkerCore(
       next_action: "proceed",
       reason: `Domain pre-selected by user: ${options.domain}`,
     };
-    logAgent(state, {
+    persistLog({
       agent_name: "intent",
       input_summary: `Domain pre-selected: ${options.domain}`,
       output_summary: `Skipped Intent Agent — derived intent: ${derivedIntent}`,
@@ -353,7 +394,7 @@ export async function runThinkerCore(
   } else {
     emit({ type: "agent_start", agent: "intent", label: "Analyzing your request..." });
     intentResult = await runIntentAgent(message, history);
-    logAgent(state, {
+    persistLog({
       agent_name: "intent",
       input_summary: `Message: "${message.slice(0, 80)}"`,
       output_summary: `Intent: ${intentResult.intent}, Level: ${intentResult.thinkingLevel}, Confidence: ${intentResult.confidence}%, Lang: ${intentResult.detectedLanguage}`,
@@ -508,7 +549,7 @@ export async function runThinkerCore(
   }
 
   logRouting(state, "clarification", clarification.next_action, clarification.reason);
-  logAgent(state, {
+  persistLog({
     agent_name: "clarification",
     input_summary: `Intent: ${state.intentType}, Level: ${state.thinkingLevel}`,
     output_summary: `Complete: ${clarification.complete}, Questions: ${clarification.questions.length}, GoalDiscovery: ${clarification.goalDiscoveryMode}`,
@@ -587,7 +628,7 @@ export async function runThinkerCore(
     }
 
     logRouting(state, "strategy", strategyResult.next_action, strategyResult.reason);
-    logAgent(state, {
+    persistLog({
       agent_name: "strategy",
       input_summary: `Goal: "${message.slice(0, 60)}"`,
       output_summary: `Assessment: ${strategyResult.ideaValidation.assessment}, FounderMode: ${strategyResult.founderMode}`,
@@ -654,7 +695,7 @@ export async function runThinkerCore(
 
       state.plan = planResult.steps;
       logRouting(state, "planner", planResult.next_action, planResult.reason);
-      logAgent(state, {
+      persistLog({
         agent_name: "planner",
         input_summary: `Goal: "${message.slice(0, 60)}"`,
         output_summary: `Steps: ${planResult.steps.length}, Types: ${planResult.steps.map((s) => s.outputType).join(",")}`,
@@ -691,7 +732,7 @@ export async function runThinkerCore(
         state.status = "researching";
         emit({ type: "agent_start", agent: "research", label: "Gathering context..." });
         state.researchFindings = await runResearchAgent(researchSteps, message, lang);
-        logAgent(state, {
+        persistLog({
           agent_name: "research",
           input_summary: `${researchSteps.length} steps need research`,
           output_summary: `Found ${state.researchFindings.length} findings`,
@@ -752,7 +793,7 @@ export async function runThinkerCore(
             { brand: state.requirements["brand"] ?? "" }
           );
 
-          logAgent(state, {
+          persistLog({
             agent_name: "design",
             input_summary: imgStep.description.slice(0, 80),
             output_summary: `Status: ${designOutput.status}, Attempt: ${imageAttemptNumber}/${IMAGE_MAX_ATTEMPTS}`,
@@ -816,14 +857,14 @@ export async function runThinkerCore(
         lastBuilderOutput = builderOutput;
 
         // Save version with plan-tier-based limit
-        const versionNum = saveVersion(state, `Build attempt ${builderRetries + 1}`, planTier);
+        const versionNum = persistVersion(`Build attempt ${builderRetries + 1}`);
         emit({
           type: "version_saved",
           version_number: versionNum,
           description: `Version ${versionNum} — ${builderOutput.artifactType} output`,
         });
 
-        logAgent(state, {
+        persistLog({
           agent_name: "builder",
           input_summary: `Goal: "${message.slice(0, 60)}", Steps: ${codeSteps.length}`,
           output_summary: `Type: ${builderOutput.artifactType}, Length: ${builderOutput.content.length}, Version: ${versionNum}`,
@@ -845,7 +886,7 @@ export async function runThinkerCore(
         lastReviewerResult = reviewerResult;
 
         logRouting(state, "reviewer", reviewerResult.next_action, reviewerResult.reason);
-        logAgent(state, {
+        persistLog({
           agent_name: "reviewer",
           input_summary: `Artifact type: ${builderOutput.artifactType}`,
           output_summary: `Passed: ${reviewerResult.passed}, Issues: ${reviewerResult.issues.length}`,
@@ -921,7 +962,7 @@ export async function runThinkerCore(
       state.criticResult = criticResult;
 
       logRouting(state, "critic", criticResult.next_action, criticResult.reason);
-      logAgent(state, {
+      persistLog({
         agent_name: "critic",
         input_summary: `Artifact type: ${lastBuilderOutput.artifactType}`,
         output_summary: `Severity: ${criticResult.overallSeverity}, Concerns: ${criticResult.concerns.length}`,
@@ -951,7 +992,7 @@ export async function runThinkerCore(
       const judgeResult = await runJudgeAgent(lastBuilderOutput, state.reviewerResult, state.criticResult, lang);
       state.judgeResult = judgeResult;
 
-      logAgent(state, {
+      persistLog({
         agent_name: "judge",
         input_summary: `Builder + Reviewer + Critic outputs`,
         output_summary: `Score: ${judgeResult.totalScore}/100, Approved: ${judgeResult.approved}, Borderline: ${judgeResult.borderline}`,
@@ -1020,7 +1061,7 @@ export async function runThinkerCore(
         state.consensusResult = consensusResult;
 
         logRouting(state, "consensus", consensusResult.next_action, consensusResult.reason);
-        logAgent(state, {
+        persistLog({
           agent_name: "consensus",
           input_summary: `Reason: ${consensusReason}`,
           output_summary: `Verdict: ${consensusResult.finalVerdict}, Votes: ${consensusResult.approveCount}/${consensusResult.votes.length}`,

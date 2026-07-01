@@ -2,3 +2,4 @@
 - [V1 feature implementation](v1-features.md) — BlueprintApprovalCard, VersionHistoryCard, DecisionMemoryBanner, language detection, domain picker; all SSE events wired end-to-end
 - [Multi-model pool architecture](multi-model-pool.md) — PDF §6.1/19/20.3 in llm.ts; 4 providers (Anthropic/OpenAI/DeepSeek/Gemini); 5s timeout failover; pool health; keys as Secrets
 - [DB schema complete](db-schema.md) — PDF §7.1 fields added to pipeline_states; new tables: user_credits, credit_transactions, billing_events; push via pnpm --filter @workspace/db push
+- [DB persistence for agent logs and versions](db-persistence-wiring.md) — persistLog/persistVersion closures inside runThinkerCore; conversationId threaded from pipeline.ts body → options; fire-and-forget pattern, never blocks pipeline

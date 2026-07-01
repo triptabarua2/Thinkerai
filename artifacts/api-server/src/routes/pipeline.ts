@@ -25,6 +25,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     decisionMemory,
     versionHistory,
     currentVersion,
+    conversationId,
   } = req.body as {
     messages?: { role: "user" | "assistant"; content: string }[];
     message?: string;
@@ -44,6 +45,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     decisionMemory?: DecisionMemoryEntry[];
     versionHistory?: VersionSnapshot[];
     currentVersion?: number;
+    conversationId?: string;
   };
 
   const allMessages = messages ?? [];
@@ -90,6 +92,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       decisionMemory,
       versionHistory,
       currentVersion,
+      conversationId,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
