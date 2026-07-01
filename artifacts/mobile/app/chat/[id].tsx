@@ -309,6 +309,8 @@ export default function ChatScreen() {
       formData.append("file", { uri: asset.uri, name: asset.name, type: asset.mimeType ?? "application/octet-stream" } as any);
       formData.append("intent", "analyze this file");
       formData.append("planTier", PLAN_TIER);
+      formData.append("userId", "default");
+      formData.append("conversationId", id as string);
 
       const baseUrl = getBaseUrl();
       const assistantId = genId();

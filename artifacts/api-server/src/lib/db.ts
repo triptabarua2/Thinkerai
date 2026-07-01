@@ -143,6 +143,91 @@ export async function saveVersionHistory(data: {
   );
 }
 
+/**
+ * Deducts credits from a user's balance and logs the transaction.
+ * Returns the new balance, or null if DB is unavailable or user not found.
+ * Safe to call without a DB — silently no-ops when DATABASE_URL is unset.
+ */
+export async function deductCredits(data: {
+  userId: string;
+  creditsToDeduct: number;
+  action: string;
+  conversationId?: string;
+  agentName?: string;
+  isFailover?: boolean;
+}): Promise<{ newBalance: number; balanceBefore: number } | null> {
+  const pool = getPool();
+  if (!pool) return null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const selectResult = await client.query(
+      `SELECT credits_balance, extra_credits_balance FROM user_credits WHERE user_id = $1 FOR UPDATE`,
+      [data.userId]
+    );
+
+    if (selectResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const row = selectResult.rows[0] as { credits_balance: number; extra_credits_balance: number };
+    const balanceBefore = row.credits_balance + row.extra_credits_balance;
+
+    // Deduct from extra credits first, then main balance
+    let remaining = data.creditsToDeduct;
+    let newExtra = row.extra_credits_balance;
+    let newMain = row.credits_balance;
+
+    if (newExtra >= remaining) {
+      newExtra -= remaining;
+      remaining = 0;
+    } else {
+      remaining -= newExtra;
+      newExtra = 0;
+      newMain = Math.max(0, newMain - remaining);
+    }
+
+    const newBalance = newMain + newExtra;
+
+    await client.query(
+      `UPDATE user_credits SET
+         credits_balance = $2,
+         extra_credits_balance = $3,
+         credits_used_this_month = credits_used_this_month + $4,
+         updated_at = NOW()
+       WHERE user_id = $1`,
+      [data.userId, newMain, newExtra, data.creditsToDeduct]
+    );
+
+    await client.query(
+      `INSERT INTO credit_transactions
+         (user_id, conversation_id, action, credits_used, balance_before, balance_after, agent_name, is_failover)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        data.userId,
+        data.conversationId ?? null,
+        data.action,
+        data.creditsToDeduct,
+        balanceBefore,
+        newBalance,
+        data.agentName ?? null,
+        data.isFailover ?? false,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return { newBalance, balanceBefore };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function saveDecisionMemory(data: {
   userId: string;
   rule: string;

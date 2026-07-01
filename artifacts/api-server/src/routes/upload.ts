@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { checkFileSecurity, buildParsedFile, getFileCategory } from "../lib/fileParser.js";
 import { runDocumentAgent } from "../agents/documentAgent.js";
+import { deductCredits } from "../lib/db.js";
+import { getUploadCreditCost } from "../lib/thinkCredits.js";
 import type { PipelineEvent } from "../types/pipeline.js";
 
 const router = Router();
@@ -108,6 +110,8 @@ router.post(
 
     const file = files[0]!;
     const userIntent = fields["intent"] ?? "analyze this file";
+    const userId = fields["userId"] ?? "default";
+    const conversationId = fields["conversationId"] ?? undefined;
 
     const security = checkFileSecurity(file.originalname, file.size, file.buffer);
     if (!security.allowed) {
@@ -137,6 +141,8 @@ router.post(
     }
 
     emit({ type: "agent_start", agent: "document", label: `Reading ${file.originalname}…` });
+
+    const creditCost = getUploadCreditCost(category);
 
     try {
       if (category === "document" || category === "code" || category === "data") {
@@ -187,6 +193,22 @@ router.post(
           text: `**File uploaded:** ${file.originalname}\n\nThis file type isn't directly parseable, but I can work with its contents. What would you like to do?`,
         });
       }
+
+      // Deduct credits after successful processing
+      const deductResult = await deductCredits({
+        userId,
+        creditsToDeduct: creditCost,
+        action: `upload_${category}`,
+        conversationId,
+        agentName: "document",
+      });
+
+      emit({
+        type: "credit_confirm",
+        action: `File processed: ${file.originalname}`,
+        credits: creditCost,
+        balance: deductResult?.newBalance ?? 0,
+      });
 
       emit({ type: "done", status: "complete" });
     } catch (err) {

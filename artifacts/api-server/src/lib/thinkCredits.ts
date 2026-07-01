@@ -19,7 +19,18 @@ export const CREDIT_COSTS: Record<string, number> = {
   rollback: 0,
   selective_rollback: 3,
   failover: 0,
+  // File upload processing costs (§11)
+  upload_document: 3,   // PDF, DOCX, TXT, code files, CSV
+  upload_image: 15,     // image analysis / style reference
+  upload_archive: 5,    // ZIP / TAR structure mapping
 };
+
+/** Returns the credit cost for a file upload based on its category. */
+export function getUploadCreditCost(category: "document" | "code" | "data" | "image" | "archive" | string): number {
+  if (category === "image") return CREDIT_COSTS["upload_image"]!;
+  if (category === "archive") return CREDIT_COSTS["upload_archive"]!;
+  return CREDIT_COSTS["upload_document"]!; // document, code, data, unknown
+}
 
 export const PLAN_CREDITS: Record<PlanTier, number> = {
   free: 50,
