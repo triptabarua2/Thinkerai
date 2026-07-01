@@ -42,6 +42,7 @@ import { AGENTS, agentTypeToDomain, detectAgentType, type AgentType } from "@/li
 import { getBaseUrl } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
 import { applyRTL, useRTL } from "@/hooks/useRTL";
+import { useOfflineQueue, type PendingMessage } from "@/hooks/useOfflineQueue";
 
 let msgCounter = 0;
 function genId(): string {
@@ -170,6 +171,9 @@ export default function ChatScreen() {
   // Three-dot chat menu
   const [showChatMenu, setShowChatMenu] = useState(false);
 
+  // Offline retry state
+  const [offlineRetrying, setOfflineRetrying] = useState(false);
+
   const initializedRef = useRef(false);
   const autoSentRef = useRef(false);
 
@@ -210,8 +214,19 @@ export default function ChatScreen() {
   ), [handleReloadMessage, handleRetryAssistant, handleEditMessage, handleReplyMessage]);
 
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
-  // Track which thinking levels the user has already confirmed (credit modal shown once per level per session)
   const creditConfirmedLevels = useRef<Set<string>>(new Set());
+
+  const { enqueue: enqueuePending, markSent } = useOfflineQueue({
+    conversationId: id,
+    onRetry: async (msg: PendingMessage) => {
+      setOfflineRetrying(true);
+      try {
+        await sendMessage(msg.text, msg.displayText, msg.id);
+      } finally {
+        setOfflineRetrying(false);
+      }
+    },
+  });
 
   useEffect(() => {
     if (q && !autoSentRef.current) {
@@ -652,18 +667,34 @@ export default function ChatScreen() {
     }
   }
 
-  async function sendMessage(text: string, displayText?: string) {
+  async function sendMessage(text: string, displayText?: string, existingPendingId?: string) {
     if (!id) return;
     const currentMessages = [...messages];
 
+    const pendingId = existingPendingId ?? genId();
+
+    // Persist to queue BEFORE sending — so if app is killed mid-flight the
+    // message survives and will be retried when the app comes back online.
+    await enqueuePending({
+      id: pendingId,
+      conversationId: id,
+      text,
+      displayText,
+      enqueuedAt: Date.now(),
+    });
+
     const userMsg: Message = {
-      id: genId(),
+      id: pendingId,
       role: "user",
       content: displayText ?? text,
       timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Avoid duplicating the user bubble when retrying a queued message
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === pendingId)) return prev;
+      return [...prev, userMsg];
+    });
     setIsStreaming(true);
     setShowTyping(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -700,16 +731,22 @@ export default function ChatScreen() {
 
       if (!response.ok) throw new Error(`Error: ${response.status}`);
       await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
+
+      // Successfully sent — remove from pending queue
+      await markSent(pendingId);
     } catch {
       setShowTyping(false);
       setPipelineActive(false);
-      const errMsg: Message = {
-        id: genId(),
-        role: "assistant",
-        content: "Something went wrong. Please check your connection and try again.",
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      // Don't show error if this was a background retry — queue will retry again
+      if (!existingPendingId) {
+        const errMsg: Message = {
+          id: genId(),
+          role: "assistant",
+          content: "Connection lost. Your message is saved and will be sent automatically when you're back online.",
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+      }
     } finally {
       setIsStreaming(false);
       setShowTyping(false);
@@ -1156,7 +1193,14 @@ export default function ChatScreen() {
           {conv?.title ?? "Chat"}
         </Text>
 
-        {pipelineActive && pipelineLabel ? (
+        {offlineRetrying ? (
+          <View style={[styles.clarifyBadge, { backgroundColor: "#F5A623" + "25" }]}>
+            <Feather name="wifi" size={12} color="#F5A623" />
+            <Text style={[styles.clarifyBadgeText, { color: "#F5A623" }]} numberOfLines={1}>
+              Retrying…
+            </Text>
+          </View>
+        ) : pipelineActive && pipelineLabel ? (
           <View style={[styles.clarifyBadge, { backgroundColor: colors.primary + "20" }]}>
             <Feather name="cpu" size={12} color={colors.primary} />
             <Text style={[styles.clarifyBadgeText, { color: colors.primary }]} numberOfLines={1}>
