@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { ThinkerLogo } from "@/components/ThinkerLogo";
 
 export function TypingIndicator() {
   const colors = useColors();
@@ -54,26 +55,43 @@ export function TypingIndicator() {
   });
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      <Animated.View
-        style={[styles.dot, { backgroundColor: colors.primary }, dotStyle(dot1)]}
-      />
-      <Animated.View
-        style={[styles.dot, { backgroundColor: colors.primary }, dotStyle(dot2)]}
-      />
-      <Animated.View
-        style={[styles.dot, { backgroundColor: colors.primary }, dotStyle(dot3)]}
-      />
+    <View style={styles.wrapper}>
+      <View style={styles.logoRow}>
+        <ThinkerLogo size={18} bare />
+      </View>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Animated.View
+          style={[styles.dot, { backgroundColor: colors.primary }, dotStyle(dot1)]}
+        />
+        <Animated.View
+          style={[styles.dot, { backgroundColor: colors.primary }, dotStyle(dot2)]}
+        />
+        <Animated.View
+          style={[styles.dot, { backgroundColor: colors.primary }, dotStyle(dot3)]}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    marginHorizontal: 16,
+    marginVertical: 4,
+    alignItems: "flex-start",
+    alignSelf: "flex-start",
+  },
+  logoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    marginLeft: 2,
+  },
   container: {
     flexDirection: "row",
     alignItems: "center",
@@ -83,8 +101,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     gap: 5,
-    marginHorizontal: 16,
-    marginVertical: 4,
   },
   dot: {
     width: 7,
