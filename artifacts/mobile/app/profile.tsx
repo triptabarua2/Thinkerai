@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -19,12 +20,21 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { createPortalSession, getCredits } from "@/lib/api";
 
 const PLAN_COLORS: Record<string, string> = {
+  "Free Trial": "#8585A8",
   Free: "#8585A8",
   Pro: "#0D9488",
   Founder: "#FFB800",
 };
+
+interface CreditStats {
+  balance: number;
+  monthlyAlloc: number;
+  monthlyUsed: number;
+  dailyBurn: number;
+}
 
 const LANGUAGES = [
   "Auto-detect", "English", "Bengali", "Arabic", "Hindi",
@@ -129,11 +139,13 @@ function EditModal({
   );
 }
 
-// ─── Credits usage data (mock — replace with API) ────────────────────────────
-const CREDIT_BALANCE   = 260;
-const MONTHLY_ALLOC    = 1500;
-const MONTHLY_USED     = 1240;
-const DAILY_BURN       = 41; // avg credits/day
+// ─── Credits defaults ─────────────────────────────────────────────────────────
+const DEFAULT_CREDIT_STATS: CreditStats = {
+  balance: 50,
+  monthlyAlloc: 50,
+  monthlyUsed: 0,
+  dailyBurn: 0,
+};
 
 const AGENT_USAGE = [
   { label: "Builder",   icon: "tool",        credits: 420, color: "#0D9488" },
@@ -157,14 +169,15 @@ function estimateDaysRemaining(balance: number, dailyBurn: number) {
 }
 
 // ─── CreditsUsageSection ──────────────────────────────────────────────────────
-function CreditsUsageSection() {
+function CreditsUsageSection({ credits }: { credits?: CreditStats }) {
+  const c = { ...DEFAULT_CREDIT_STATS, ...credits };
   const colors = useColors();
   const maxAgent = Math.max(...AGENT_USAGE.map((a) => a.credits));
-  const monthlyPct = Math.min(MONTHLY_USED / MONTHLY_ALLOC, 1);
-  const daysLeft = estimateDaysRemaining(CREDIT_BALANCE, DAILY_BURN);
+  const monthlyPct = Math.min(c.monthlyUsed / Math.max(c.monthlyAlloc, 1), 1);
+  const daysLeft = estimateDaysRemaining(c.balance, c.dailyBurn || 1);
   const weekMax = Math.max(...WEEKLY);
 
-  // Animate bar widths on mount
+  // Animate bar widths — re-runs whenever live credit data arrives
   const barAnims = useRef(AGENT_USAGE.map(() => new Animated.Value(0))).current;
   const monthAnim = useRef(new Animated.Value(0)).current;
 
@@ -184,7 +197,8 @@ function CreditsUsageSection() {
       }),
       ...agentAnims,
     ]).start();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthlyPct]);
 
   const dangerColor = monthlyPct > 0.85 ? colors.destructive : monthlyPct > 0.65 ? colors.warning : colors.success;
 
@@ -205,13 +219,13 @@ function CreditsUsageSection() {
         <View style={chartStyles.estimateLeft}>
           <Text style={[chartStyles.estimateNum, { color: colors.text }]}>~{daysLeft}</Text>
           <Text style={[chartStyles.estimateSub, { color: colors.textSecondary }]}>
-            remaining at {DAILY_BURN} cr/day
+            remaining at {c.dailyBurn > 0 ? c.dailyBurn : "~"} cr/day
           </Text>
         </View>
         {/* Right — balance badge */}
         <View style={[chartStyles.balanceBadge, { backgroundColor: colors.primary + "18" }]}>
           <Feather name="zap" size={14} color={colors.primary} />
-          <Text style={[chartStyles.balanceNum, { color: colors.primary }]}>{CREDIT_BALANCE}</Text>
+          <Text style={[chartStyles.balanceNum, { color: colors.primary }]}>{c.balance}</Text>
           <Text style={[chartStyles.balanceLabel, { color: colors.primary + "AA" }]}>credits left</Text>
         </View>
       </View>
@@ -221,7 +235,7 @@ function CreditsUsageSection() {
         <View style={chartStyles.monthRow}>
           <Text style={[chartStyles.monthLabel, { color: colors.text }]}>Monthly usage</Text>
           <Text style={[chartStyles.monthVal, { color: colors.textSecondary }]}>
-            {MONTHLY_USED.toLocaleString()} / {MONTHLY_ALLOC.toLocaleString()} cr
+            {c.monthlyUsed.toLocaleString()} / {c.monthlyAlloc.toLocaleString()} cr
           </Text>
         </View>
         <View style={[chartStyles.trackBg, { backgroundColor: colors.border }]}>
@@ -329,13 +343,53 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const plan = "Pro";
 
   const [displayName, setDisplayName] = useState("Thinker AI User");
   const [email, setEmail] = useState("user@example.com");
   const [username, setUsername] = useState("@thinkeruser");
   const [lang, setLang] = useState("Auto-detect");
   const [decisions, setDecisions] = useState<DecisionMemory[]>(INITIAL_DECISIONS);
+  const [planTier, setPlanTier] = useState("Free Trial");
+  const [creditStats, setCreditStats] = useState<CreditStats | undefined>(undefined);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const plan = planTier;
+
+  // Fetch live credit + plan data on mount
+  useEffect(() => {
+    getCredits().then((data) => {
+      if (!data) return;
+      setCreditStats({
+        balance: data.totalBalance,
+        monthlyAlloc: data.monthlyQuota,
+        monthlyUsed: data.creditsUsedThisMonth,
+        dailyBurn: Math.max(1, Math.round(data.creditsUsedThisMonth / 30)),
+      });
+      const tierDisplay =
+        data.planTier === "founder" ? "Founder"
+        : data.planTier === "pro" ? "Pro"
+        : "Free Trial";
+      setPlanTier(tierDisplay);
+    });
+  }, []);
+
+  const handleManageBilling = useCallback(async () => {
+    setPortalLoading(true);
+    try {
+      const url = await createPortalSession();
+      if (url) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert(
+          "Billing Portal",
+          "Stripe is not connected yet. Connect it in the Replit Integrations panel to manage subscriptions.",
+          [{ text: "OK" }],
+        );
+      }
+    } finally {
+      setPortalLoading(false);
+    }
+  }, []);
 
   const [editModal, setEditModal] = useState<{
     visible: boolean;
@@ -450,11 +504,26 @@ export default function ProfileScreen() {
           <Text style={[styles.displayName, { color: colors.text }]}>{displayName}</Text>
           <Text style={[styles.usernameText, { color: colors.textSecondary }]}>{username}</Text>
 
-          <View style={[styles.planBadge, { backgroundColor: (PLAN_COLORS[plan] ?? colors.primary) + "20" }]}>
-            <View style={[styles.planDot, { backgroundColor: PLAN_COLORS[plan] ?? colors.primary }]} />
-            <Text style={[styles.planText, { color: PLAN_COLORS[plan] ?? colors.primary }]}>
-              {plan} Plan
-            </Text>
+          <View style={styles.planRow}>
+            <View style={[styles.planBadge, { backgroundColor: (PLAN_COLORS[plan] ?? colors.primary) + "20" }]}>
+              <View style={[styles.planDot, { backgroundColor: PLAN_COLORS[plan] ?? colors.primary }]} />
+              <Text style={[styles.planText, { color: PLAN_COLORS[plan] ?? colors.primary }]}>
+                {plan} Plan
+              </Text>
+            </View>
+            {plan !== "Free Trial" && (
+              <TouchableOpacity
+                style={[styles.manageBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                onPress={handleManageBilling}
+                activeOpacity={0.7}
+                disabled={portalLoading}
+              >
+                <Feather name={portalLoading ? "loader" : "credit-card"} size={12} color={colors.textSecondary} />
+                <Text style={[styles.manageBtnText, { color: colors.textSecondary }]}>
+                  {portalLoading ? "Opening…" : "Manage Billing"}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <Text style={[styles.bio, { color: colors.textSecondary }]}>
@@ -501,7 +570,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Credits & Usage */}
-        <CreditsUsageSection />
+        <CreditsUsageSection credits={creditStats} />
 
         {/* Decision Memory */}
         <View style={styles.section}>
@@ -717,6 +786,12 @@ const styles = StyleSheet.create({
   },
   displayName: { fontSize: 20, fontWeight: "700" as const, marginBottom: 2 },
   usernameText: { fontSize: 14, marginBottom: 10 },
+  planRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
   planBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -724,10 +799,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
-    marginBottom: 12,
   },
   planDot: { width: 6, height: 6, borderRadius: 3 },
   planText: { fontSize: 12, fontWeight: "700" as const },
+  manageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  manageBtnText: { fontSize: 11, fontWeight: "600" as const },
   bio: { fontSize: 13, textAlign: "center", lineHeight: 18 },
   section: { paddingHorizontal: 20, marginTop: 8 },
   sectionHeader: {

@@ -35,6 +35,7 @@ import { SignatureQuestionCard } from "@/components/SignatureQuestionCard";
 import { ThinkingLevelPicker, type ThinkingLevel } from "@/components/ThinkingLevelPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { VersionHistoryCard, type VersionItem } from "@/components/VersionHistoryCard";
+import { FinalOutputCard } from "@/components/FinalOutputCard";
 import { FileReceivedCard, type FileCategory } from "@/components/FileReceivedCard";
 import { useApp } from "@/context/AppContext";
 import type { Message } from "@/context/AppContext";
@@ -164,6 +165,18 @@ export default function ChatScreen() {
     visible: boolean;
     artifactType: string;
   } | null>(null);
+
+  // Final output card state
+  const [finalOutput, setFinalOutput] = useState<{
+    projectName: string;
+    summary: string;
+    creditsUsed: number;
+    agentCount: number;
+    version: number;
+    duration: string;
+  } | null>(null);
+  const lastOutputContent = useRef<string>("");
+  const pipelineStartTimeRef = useRef<number>(0);
 
   // Founder Mode notification
   const [founderModeActive, setFounderModeActive] = useState(false);
@@ -580,6 +593,8 @@ export default function ChatScreen() {
     setPipelineSteps(buildInitialSteps());
     setPipelineActive(false);
     setDecisionEvent(null);
+    setFinalOutput(null);
+    pipelineStartTimeRef.current = Date.now();
 
     const activeAgent = agentType;
     try {
@@ -703,6 +718,8 @@ export default function ChatScreen() {
     setPipelineActive(false);
     setPipelineLabel("");
     setDecisionEvent(null);
+    setFinalOutput(null);
+    pipelineStartTimeRef.current = Date.now();
 
     const activeAgent = agentType;
 
@@ -990,6 +1007,17 @@ export default function ChatScreen() {
               } else {
                 setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: fullContent }; return u; });
               }
+              // Show the FinalOutputCard with Share/Copy actions
+              lastOutputContent.current = fullContent;
+              const durationSecs = Math.round((Date.now() - pipelineStartTimeRef.current) / 1000);
+              setFinalOutput({
+                projectName: finalType,
+                summary: finalSummary,
+                creditsUsed: finalCredits,
+                agentCount: finalAgents,
+                version: finalVersion,
+                duration: durationSecs > 0 ? `${durationSecs}s` : "< 1s",
+              });
               break;
             }
 
@@ -1312,6 +1340,17 @@ export default function ChatScreen() {
                   agentCount={clarifyState.agentCount}
                   onApprove={handleOutputApprove}
                   onChangeSomething={handleOutputChangeSomething}
+                />
+              )}
+              {finalOutput && (
+                <FinalOutputCard
+                  projectName={finalOutput.projectName}
+                  summary={finalOutput.summary}
+                  outputContent={lastOutputContent.current}
+                  creditsUsed={finalOutput.creditsUsed}
+                  agentCount={finalOutput.agentCount}
+                  duration={finalOutput.duration}
+                  onClose={() => setFinalOutput(null)}
                 />
               )}
               {imageApproval?.visible && (

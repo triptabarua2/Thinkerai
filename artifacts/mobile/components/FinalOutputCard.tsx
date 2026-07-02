@@ -1,12 +1,14 @@
 import { Feather } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import React, { useState } from "react";
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
   projectName: string;
   summary: string;
+  outputContent?: string;      // full built content for Share / Copy
   livePreviewUrl?: string;
   downloadUrl?: string;
   architectureNotes?: string;
@@ -19,6 +21,7 @@ interface Props {
 export function FinalOutputCard({
   projectName,
   summary,
+  outputContent,
   livePreviewUrl,
   downloadUrl,
   architectureNotes,
@@ -29,6 +32,25 @@ export function FinalOutputCard({
 }: Props) {
   const colors = useColors();
   const [showNotes, setShowNotes] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function handleShare() {
+    try {
+      await Share.share({
+        title: projectName,
+        message: outputContent
+          ? `${summary}\n\n---\n${outputContent}`
+          : summary,
+      });
+    } catch {}
+  }
+
+  async function handleCopy() {
+    const text = outputContent ?? summary;
+    await Clipboard.setStringAsync(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.success + "50" }]}>
@@ -67,6 +89,7 @@ export function FinalOutputCard({
           </View>
         </View>
 
+        {/* Primary action buttons: Live Preview / Download (when URLs provided) */}
         <View style={styles.ctaButtons}>
           {livePreviewUrl && (
             <TouchableOpacity
@@ -88,6 +111,35 @@ export function FinalOutputCard({
               <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Download ZIP</Text>
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* Always-visible Share + Copy row */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}
+            onPress={handleShare}
+            activeOpacity={0.75}
+          >
+            <Feather name="share-2" size={13} color={colors.primary} />
+            <Text style={[styles.actionBtnText, { color: colors.primary }]}>Share Output</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              {
+                backgroundColor: copied ? colors.success + "15" : colors.surface,
+                borderColor: copied ? colors.success + "40" : colors.border,
+              },
+            ]}
+            onPress={handleCopy}
+            activeOpacity={0.75}
+          >
+            <Feather name={copied ? "check" : "copy"} size={13} color={copied ? colors.success : colors.textSecondary} />
+            <Text style={[styles.actionBtnText, { color: copied ? colors.success : colors.textSecondary }]}>
+              {copied ? "Copied!" : "Copy Output"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {architectureNotes && (
@@ -143,7 +195,7 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 13, fontWeight: "700" as const },
   statLabel: { fontSize: 11 },
-  ctaButtons: { flexDirection: "row", gap: 8, marginBottom: 4 },
+  ctaButtons: { flexDirection: "row", gap: 8, marginBottom: 10 },
   primaryBtn: {
     flex: 1,
     flexDirection: "row",
@@ -165,6 +217,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   secondaryBtnText: { fontSize: 14 },
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 4,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  actionBtnText: { fontSize: 13, fontWeight: "600" as const },
   notesToggle: {
     flexDirection: "row",
     alignItems: "center",

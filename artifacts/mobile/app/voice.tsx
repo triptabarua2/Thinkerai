@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Easing,
   Platform,
@@ -14,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThinkerLogo } from "@/components/ThinkerLogo";
+import { getBaseUrl } from "@/lib/api";
 import { callVoiceCallback, clearVoiceCallback } from "@/lib/voiceStore";
 
 const TEAL = "#0B6E69";
@@ -141,6 +144,7 @@ export default function VoiceScreen() {
   const [transcript, setTranscript] = useState("");
   const transcriptRef = useRef("");
   const recognitionRef = useRef<any>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
   const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
@@ -151,25 +155,22 @@ export default function VoiceScreen() {
     }
   }
 
-  function handleClose() {
+  async function handleClose() {
     stopRecognition();
+    // Stop native recording if active
+    if (recordingRef.current) {
+      try {
+        await recordingRef.current.stopAndUnloadAsync();
+      } catch {}
+      recordingRef.current = null;
+    }
     clearVoiceCallback();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   }
 
-  function startListening() {
-    if (Platform.OS !== "web") {
-      setVoiceState("listening");
-      setTimeout(() => {
-        setVoiceState("processing");
-        setTimeout(() => {
-          setVoiceState("idle");
-        }, 1000);
-      }, 3000);
-      return;
-    }
-
+  // ── Web: Web Speech API ────────────────────────────────────────────────────
+  function startListeningWeb() {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
@@ -207,9 +208,7 @@ export default function VoiceScreen() {
       recognitionRef.current = null;
       const finalText = transcriptRef.current;
       setTimeout(() => {
-        if (finalText.trim()) {
-          callVoiceCallback(finalText.trim());
-        }
+        if (finalText.trim()) callVoiceCallback(finalText.trim());
         setVoiceState("done");
         setTimeout(() => router.back(), 300);
       }, 500);
@@ -224,18 +223,116 @@ export default function VoiceScreen() {
     recognition.start();
   }
 
+  // ── Native: expo-av recording → backend Whisper transcription ─────────────
+  async function startListeningNative() {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Microphone permission needed",
+          "Please allow microphone access in Settings to use voice input.",
+        );
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      recordingRef.current = recording;
+      setVoiceState("listening");
+      setTranscript("");
+    } catch (err: any) {
+      console.error("Voice start error:", err);
+      setVoiceState("idle");
+    }
+  }
+
+  async function stopAndTranscribeNative() {
+    const recording = recordingRef.current;
+    if (!recording) return;
+
+    setVoiceState("processing");
+    setTranscript("Transcribing...");
+
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      const uri = recording.getURI();
+      recordingRef.current = null;
+
+      if (!uri) throw new Error("No recording URI");
+
+      const formData = new FormData();
+      formData.append("audio", { uri, name: "audio.m4a", type: "audio/m4a" } as any);
+
+      const res = await fetch(`${getBaseUrl()}api/transcribe`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ error: "Transcription failed" })) as any;
+        throw new Error(errBody.error ?? "Transcription failed");
+      }
+
+      const { transcript } = await res.json() as { transcript: string };
+
+      if (transcript?.trim()) {
+        callVoiceCallback(transcript.trim());
+        setTranscript(transcript.trim());
+        setVoiceState("done");
+        setTimeout(() => router.back(), 600);
+      } else {
+        setTranscript("No speech detected");
+        setVoiceState("idle");
+      }
+    } catch (err: any) {
+      console.error("Voice transcription error:", err);
+      recordingRef.current = null;   // ensure stale ref is cleared
+      setTranscript("");
+      setVoiceState("idle");
+      Alert.alert(
+        "Voice input failed",
+        err?.message?.includes("OPENAI_API_KEY")
+          ? "Set OPENAI_API_KEY in Replit Secrets to enable voice transcription."
+          : (err?.message ?? "Could not transcribe audio. Please try again."),
+      );
+    }
+  }
+
+  function startListening() {
+    if (Platform.OS === "web") {
+      startListeningWeb();
+    } else {
+      startListeningNative();
+    }
+  }
+
   function handleTap() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (voiceState === "idle") {
       startListening();
     } else if (voiceState === "listening") {
-      stopRecognition();
+      if (Platform.OS === "web") {
+        stopRecognition();
+      } else {
+        stopAndTranscribeNative();
+      }
     }
   }
 
   useEffect(() => {
     return () => {
       stopRecognition();
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current = null;
+      }
     };
   }, []);
 

@@ -8,6 +8,7 @@ import uploadRouter from "./upload";
 import downloadRouter from "./download";
 import feedbackRouter from "./feedback";
 import creditsRouter from "./credits";
+import transcribeRouter from "./transcribe";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(uploadRouter);
 router.use(downloadRouter);
 router.use(feedbackRouter);
 router.use("/credits", creditsRouter);
+router.use(transcribeRouter);
 
 export default router;
