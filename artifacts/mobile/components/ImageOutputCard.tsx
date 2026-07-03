@@ -1,12 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import { cacheDirectory, downloadAsync } from "expo-file-system/legacy";
 import { getLocales } from "expo-localization";
-import * as MediaLibrary from "expo-media-library";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,6 +16,20 @@ import {
 import { SavePreferenceModal } from "@/components/SavePreferenceModal";
 import { useColors } from "@/hooks/useColors";
 import { useSavePreference } from "@/hooks/useSavePreference";
+
+// Lazy-import native-only modules so they are never evaluated on web
+let MediaLibrary: typeof import("expo-media-library") | null = null;
+let FileSystemLegacy: {
+  cacheDirectory: string | null;
+  downloadAsync: (uri: string, fileUri: string) => Promise<{ uri: string }>;
+} | null = null;
+
+if (Platform.OS !== "web") {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  MediaLibrary = require("expo-media-library");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  FileSystemLegacy = require("expo-file-system/legacy");
+}
 
 interface Props {
   imageUri?: string;
@@ -46,16 +60,10 @@ export function ImageOutputCard({
   const [showPrefModal, setShowPrefModal] = useState(false);
   const { pref, loaded, savePref } = useSavePreference("image");
 
-  // Track which URI was already auto-saved — prevents double-save & avoids
-  // keeping saveState in the effect dependency array (exhaustive-deps safe).
+  // Track which URI was already auto-saved to prevent double-saves
   const autoSavedUri = useRef<string | null>(null);
 
   const attemptsLeft = maxAttempts - attemptNumber;
-
-  // Reset save state whenever a new image arrives
-  useEffect(() => {
-    if (imageUri) setSaveState("idle");
-  }, [imageUri]);
 
   // Returns true if the primary device locale is Bengali (bn, bn-BD, etc.)
   function isBengali(): boolean {
@@ -67,8 +75,15 @@ export function ImageOutputCard({
     );
   }
 
-  // Save image to device gallery
+  // Reset save state whenever a new image arrives
+  useEffect(() => {
+    if (imageUri) setSaveState("idle");
+  }, [imageUri]);
+
+  // Save image to device gallery (native only)
   async function saveToGallery(uri: string): Promise<void> {
+    if (!MediaLibrary || !FileSystemLegacy) return;
+
     try {
       setSaveState("saving");
       const bn = isBengali();
@@ -77,21 +92,21 @@ export function ImageOutputCard({
       const { status: existing, canAskAgain } =
         await MediaLibrary.getPermissionsAsync();
 
-      if (existing === "granted") {
-        // Already allowed — proceed directly
-      } else if (!canAskAgain) {
-        // Previously denied and can't prompt again — guide to Settings
-        Alert.alert(
-          bn ? "অনুমতি দেওয়া হয়নি" : "Permission Denied",
-          bn
-            ? "Settings থেকে Photos অনুমতি চালু করলে ছবি গ্যালারিতে সেভ করা যাবে।"
-            : "Go to Settings and enable Photos access to save images to your gallery.",
-          [{ text: bn ? "ঠিক আছে" : "OK" }]
-        );
-        setSaveState("error");
-        return;
-      } else {
-        // First time (undetermined) — show a friendly rationale before the system dialog
+      if (existing !== "granted") {
+        if (!canAskAgain) {
+          // Previously denied — guide to Settings
+          Alert.alert(
+            bn ? "অনুমতি দেওয়া হয়নি" : "Permission Denied",
+            bn
+              ? "Settings থেকে Photos অনুমতি চালু করলে ছবি গ্যালারিতে সেভ করা যাবে।"
+              : "Go to Settings and enable Photos access to save images to your gallery.",
+            [{ text: bn ? "ঠিক আছে" : "OK" }]
+          );
+          setSaveState("error");
+          return;
+        }
+
+        // First time (undetermined) — show friendly rationale before system dialog
         await new Promise<void>((resolve) =>
           Alert.alert(
             bn ? "গ্যালারি অ্যাক্সেস" : "Gallery Access",
@@ -109,12 +124,12 @@ export function ImageOutputCard({
         }
       }
 
-      // Download remote URL to local cache first
+      // Download remote URL to local cache
       let localUri = uri;
       if (uri.startsWith("http")) {
-        const dir = cacheDirectory ?? "";
+        const dir = FileSystemLegacy.cacheDirectory ?? "";
         const dest = `${dir}thinker_${Date.now()}.jpg`;
-        const result = await downloadAsync(uri, dest);
+        const result = await FileSystemLegacy.downloadAsync(uri, dest);
         if (!result.uri) throw new Error("Download failed");
         localUri = result.uri;
       }
@@ -126,17 +141,19 @@ export function ImageOutputCard({
     }
   }
 
-  // Show preference modal first time image is ready
+  // Show preference modal the first time an image is ready (native only)
   useEffect(() => {
+    if (Platform.OS === "web") return;
     if (!loaded || !imageUri || isLoading) return;
     if (pref === null) setShowPrefModal(true);
   }, [loaded, imageUri, isLoading, pref]);
 
-  // Auto-save when pref is "auto" and a new image is available
+  // Auto-save when pref is "auto" and a new image is available (native only)
   useEffect(() => {
+    if (Platform.OS === "web") return;
     if (!loaded || !imageUri || isLoading) return;
     if (pref !== "auto") return;
-    if (autoSavedUri.current === imageUri) return; // already handled this URI
+    if (autoSavedUri.current === imageUri) return;
     autoSavedUri.current = imageUri;
     saveToGallery(imageUri);
   }, [loaded, imageUri, isLoading, pref]);
@@ -152,35 +169,93 @@ export function ImageOutputCard({
 
   return (
     <>
-      <SavePreferenceModal visible={showPrefModal} type="image" onChoose={handlePrefChoice} />
+      {Platform.OS !== "web" && (
+        <SavePreferenceModal
+          visible={showPrefModal}
+          type="image"
+          onChoose={handlePrefChoice}
+        />
+      )}
 
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
         {/* Header */}
         <View style={styles.cardHeader}>
-          <View style={[styles.headerBadge, { backgroundColor: colors.primary + "18" }]}>
+          <View
+            style={[
+              styles.headerBadge,
+              { backgroundColor: colors.primary + "18" },
+            ]}
+          >
             <Feather name="image" size={12} color={colors.primary} />
-            <Text style={[styles.headerBadgeText, { color: colors.primary }]}>Design Agent</Text>
+            <Text style={[styles.headerBadgeText, { color: colors.primary }]}>
+              Design Agent
+            </Text>
           </View>
           <View style={styles.headerRight}>
             {saveState === "saving" && (
-              <View style={[styles.saveBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View
+                style={[
+                  styles.saveBadge,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
                 <ActivityIndicator size={10} color={colors.primary} />
-                <Text style={[styles.saveBadgeText, { color: colors.textSecondary }]}>সেভ হচ্ছে…</Text>
+                <Text
+                  style={[
+                    styles.saveBadgeText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  সেভ হচ্ছে…
+                </Text>
               </View>
             )}
             {saveState === "saved" && (
-              <View style={[styles.saveBadge, { backgroundColor: "#16A34A18", borderColor: "#16A34A40" }]}>
+              <View
+                style={[
+                  styles.saveBadge,
+                  {
+                    backgroundColor: "#16A34A18",
+                    borderColor: "#16A34A40",
+                  },
+                ]}
+              >
                 <Feather name="check-circle" size={11} color="#16A34A" />
-                <Text style={[styles.saveBadgeText, { color: "#16A34A" }]}>গ্যালারিতে সেভ</Text>
+                <Text style={[styles.saveBadgeText, { color: "#16A34A" }]}>
+                  গ্যালারিতে সেভ
+                </Text>
               </View>
             )}
             {saveState === "error" && (
-              <View style={[styles.saveBadge, { backgroundColor: "#EF444418", borderColor: "#EF444440" }]}>
+              <View
+                style={[
+                  styles.saveBadge,
+                  {
+                    backgroundColor: "#EF444418",
+                    borderColor: "#EF444440",
+                  },
+                ]}
+              >
                 <Feather name="alert-circle" size={11} color="#EF4444" />
-                <Text style={[styles.saveBadgeText, { color: "#EF4444" }]}>সেভ হয়নি</Text>
+                <Text style={[styles.saveBadgeText, { color: "#EF4444" }]}>
+                  সেভ হয়নি
+                </Text>
               </View>
             )}
-            <View style={[styles.attemptBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.attemptBadge,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               <Text style={[styles.attemptText, { color: colors.textSecondary }]}>
                 Attempt {attemptNumber}/{maxAttempts}
               </Text>
@@ -189,24 +264,36 @@ export function ImageOutputCard({
         </View>
 
         {/* Image */}
-        <View style={[styles.imageContainer, { backgroundColor: colors.surface }]}>
+        <View
+          style={[styles.imageContainer, { backgroundColor: colors.surface }]}
+        >
           {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator color={colors.primary} size="large" />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Generating image…</Text>
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                Generating image…
+              </Text>
             </View>
           ) : imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.image}
+              resizeMode="contain"
+            />
           ) : (
             <View style={styles.loadingState}>
               <Feather name="image" size={32} color={colors.textTertiary} />
-              <Text style={[styles.loadingText, { color: colors.textTertiary }]}>No image yet</Text>
+              <Text style={[styles.loadingText, { color: colors.textTertiary }]}>
+                No image yet
+              </Text>
             </View>
           )}
         </View>
 
         {description ? (
-          <Text style={[styles.description, { color: colors.textSecondary }]}>{description}</Text>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>
+            {description}
+          </Text>
         ) : null}
 
         {/* Action buttons */}
@@ -222,45 +309,99 @@ export function ImageOutputCard({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              style={[
+                styles.secondaryBtn,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
               onPress={() => setShowRevise(!showRevise)}
               activeOpacity={0.7}
             >
               <Feather name="edit-2" size={13} color={colors.text} />
-              <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Revise</Text>
+              <Text style={[styles.secondaryBtnText, { color: colors.text }]}>
+                Revise
+              </Text>
             </TouchableOpacity>
 
             {attemptsLeft > 0 && (
               <TouchableOpacity
-                style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                style={[
+                  styles.secondaryBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
                 onPress={onRegenerate}
                 activeOpacity={0.7}
               >
                 <Feather name="refresh-cw" size={13} color={colors.text} />
-                <Text style={[styles.secondaryBtnText, { color: colors.text }]}>
+                <Text
+                  style={[styles.secondaryBtnText, { color: colors.text }]}
+                >
                   Regenerate ({attemptsLeft} left)
                 </Text>
               </TouchableOpacity>
             )}
 
-            {/* Manual save — shown when pref is manual, or on error (allow retry) */}
-            {(pref === "manual" || saveState === "error") &&
+            {/* Native: manual save button */}
+            {Platform.OS !== "web" &&
+              (pref === "manual" || saveState === "error") &&
               saveState !== "saving" &&
               saveState !== "saved" && (
                 <TouchableOpacity
-                  style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                  style={[
+                    styles.secondaryBtn,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                    },
+                  ]}
                   onPress={() => saveToGallery(imageUri)}
                   activeOpacity={0.7}
                 >
                   <Feather name="download" size={13} color={colors.text} />
-                  <Text style={[styles.secondaryBtnText, { color: colors.text }]}>গ্যালারিতে সেভ</Text>
+                  <Text
+                    style={[styles.secondaryBtnText, { color: colors.text }]}
+                  >
+                    গ্যালারিতে সেভ
+                  </Text>
                 </TouchableOpacity>
               )}
+
+            {/* Web: open image in new tab */}
+            {Platform.OS === "web" && (
+              <TouchableOpacity
+                style={[
+                  styles.secondaryBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+                onPress={() => Linking.openURL(imageUri)}
+                activeOpacity={0.7}
+              >
+                <Feather name="external-link" size={13} color={colors.text} />
+                <Text
+                  style={[styles.secondaryBtnText, { color: colors.text }]}
+                >
+                  Open image
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
         {attemptsLeft === 0 && !isLoading && (
-          <View style={[styles.limitRow, { backgroundColor: colors.warning + "14" }]}>
+          <View
+            style={[
+              styles.limitRow,
+              { backgroundColor: colors.warning + "14" },
+            ]}
+          >
             <Feather name="alert-circle" size={12} color={colors.warning} />
             <Text style={[styles.limitText, { color: colors.warning }]}>
               Maximum regeneration attempts reached
