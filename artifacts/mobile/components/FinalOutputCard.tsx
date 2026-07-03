@@ -8,27 +8,27 @@ import { useColors } from "@/hooks/useColors";
 interface Props {
   projectName: string;
   summary: string;
-  outputContent?: string;      // full built content for Share / Copy
-  livePreviewUrl?: string;
-  downloadUrl?: string;
+  outputContent?: string;
   architectureNotes?: string;
   creditsUsed: number;
   agentCount: number;
   duration: string;
   onClose?: () => void;
+  onLivePreview?: () => void;
+  onDownload?: () => void | Promise<void>;
 }
 
 export function FinalOutputCard({
   projectName,
   summary,
   outputContent,
-  livePreviewUrl,
-  downloadUrl,
   architectureNotes,
   creditsUsed,
   agentCount,
   duration,
   onClose,
+  onLivePreview,
+  onDownload,
 }: Props) {
   const colors = useColors();
   const [showNotes, setShowNotes] = useState(false);
@@ -89,29 +89,31 @@ export function FinalOutputCard({
           </View>
         </View>
 
-        {/* Primary action buttons: Live Preview / Download (when URLs provided) */}
-        <View style={styles.ctaButtons}>
-          {livePreviewUrl && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-              onPress={() => Linking.openURL(livePreviewUrl)}
-              activeOpacity={0.8}
-            >
-              <Feather name="external-link" size={14} color="#fff" />
-              <Text style={styles.primaryBtnText}>Live Preview</Text>
-            </TouchableOpacity>
-          )}
-          {downloadUrl && (
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-              onPress={() => Linking.openURL(downloadUrl)}
-              activeOpacity={0.8}
-            >
-              <Feather name="download" size={14} color={colors.text} />
-              <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Download ZIP</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Primary action buttons: Live Preview / Download (when callbacks provided) */}
+        {(onLivePreview || onDownload) && (
+          <View style={styles.ctaButtons}>
+            {onLivePreview && (
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+                onPress={onLivePreview}
+                activeOpacity={0.8}
+              >
+                <Feather name="external-link" size={14} color="#fff" />
+                <Text style={styles.primaryBtnText}>Live Preview</Text>
+              </TouchableOpacity>
+            )}
+            {onDownload && (
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => onDownload()}
+                activeOpacity={0.8}
+              >
+                <Feather name="download" size={14} color={colors.text} />
+                <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Download</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Always-visible Share + Copy row */}
         <View style={styles.actionRow}>

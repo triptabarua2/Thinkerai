@@ -343,6 +343,7 @@ export async function runThinkerCore(
         creditsUsed: options?.currentVersion ?? 1,
         agentCount,
         version: lastVersion.version_number,
+        builderContent: lastVersion.content,
       });
       emit({ type: "content", text: sanitizeModelNames(lastVersion.content) });
       // Post-delivery feedback prompt (Section 9.4)
@@ -1137,6 +1138,7 @@ export async function runThinkerCore(
       creditsUsed: state.thinkCreditsUsed || 1,
       agentCount: totalAgents,
       version: state.current_version,
+      builderContent: state.builderOutput.content,
     });
     // Post-delivery feedback prompt (Section 9.4)
     emit({

@@ -176,6 +176,7 @@ export default function ChatScreen() {
     agentCount: number;
     version: number;
     duration: string;
+    builderContent?: string;
   } | null>(null);
   const lastOutputContent = useRef<string>("");
   const pipelineStartTimeRef = useRef<number>(0);
@@ -1020,6 +1021,7 @@ export default function ChatScreen() {
                 agentCount: finalAgents,
                 version: finalVersion,
                 duration: durationSecs > 0 ? `${durationSecs}s` : "< 1s",
+                builderContent: event.builderContent as string | undefined,
               });
               break;
             }
@@ -1354,6 +1356,37 @@ export default function ChatScreen() {
                   agentCount={finalOutput.agentCount}
                   duration={finalOutput.duration}
                   onClose={() => setFinalOutput(null)}
+                  onLivePreview={(() => {
+                    const bc = finalOutput.builderContent ?? "";
+                    const m = bc.match(/```html\n?([\s\S]*?)```/i);
+                    const html = m?.[1]?.trim();
+                    if (!html) return undefined;
+                    return () => {
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        const blob = new Blob([html], { type: "text/html" });
+                        const blobUrl = URL.createObjectURL(blob);
+                        (window as unknown as Window & { open: (url: string, target: string) => void }).open(blobUrl, "_blank");
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+                      }
+                    };
+                  })()}
+                  onDownload={() => {
+                    const content = finalOutput.builderContent ?? lastOutputContent.current;
+                    if (Platform.OS === "web" && typeof document !== "undefined") {
+                      const hasHtml = /```html\n?[\s\S]*?```/i.test(content);
+                      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `thinker-output.${hasHtml ? "html" : "md"}`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    } else {
+                      Share.share({ title: finalOutput.projectName, message: content });
+                    }
+                  }}
                 />
               )}
               {imageApproval?.visible && (
