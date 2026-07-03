@@ -5,9 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -235,10 +233,7 @@ export default function WorkflowsScreen() {
         statusBarTranslucent
         onRequestClose={closeModal}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
+        <View style={{ flex: 1 }}>
           {/* Dimmed backdrop — absolute so it doesn't push the sheet down */}
           <Animated.View style={[s.modalOverlay, { opacity: fadeAnim }]}>
             <Pressable style={StyleSheet.absoluteFillObject} onPress={closeModal} />
@@ -322,7 +317,7 @@ export default function WorkflowsScreen() {
               </TouchableOpacity>
             </View>
           </Animated.View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
