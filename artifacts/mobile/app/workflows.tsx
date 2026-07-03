@@ -239,16 +239,20 @@ export default function WorkflowsScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
-          {/* Dimmed backdrop */}
+          {/* Dimmed backdrop — absolute so it doesn't push the sheet down */}
           <Animated.View style={[s.modalOverlay, { opacity: fadeAnim }]}>
-            <Pressable style={{ flex: 1 }} onPress={closeModal} />
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={closeModal} />
           </Animated.View>
 
-          {/* Sheet slides down from top — covers exactly half the screen */}
+          {/* Sheet — absolutely pinned to top, covers half the screen */}
           <Animated.View
             style={[
               s.sheet,
               {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
                 height: sheetHeight,
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
@@ -376,7 +380,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       width: 34, height: 34, borderRadius: 8, borderWidth: 1,
       alignItems: "center", justifyContent: "center",
     },
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-start" },
+    modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
     kav: { justifyContent: "flex-start" },
     sheet: {
       borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
