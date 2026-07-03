@@ -7,7 +7,7 @@ import {
   Animated,
   Easing,
   FlatList,
-  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
   Platform,
@@ -177,7 +177,10 @@ export default function HomeScreen() {
   const HEADER_H = HEADER_TOP + 44 + 12;
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
+    >
       {/* Fixed Header — absolute overlay, doesn't affect flex layout */}
       <BlurView
         intensity={60}
@@ -240,7 +243,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </BlurView>
 
-      <View style={[styles.content, { paddingTop: HEADER_H + 16 }]}>
+      <View style={[styles.content, { flex: 1, paddingTop: HEADER_H + 16 }]}>
         {/* Hero */}
         <View style={styles.hero}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>
@@ -324,7 +327,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Bottom Chat Bar — absolutely pinned, moves up with keyboard */}
+      {/* Bottom Chat Bar — in normal flow (native: KAV moves it; web: position:fixed) */}
       <HomeChatBar
         colors={colors}
         insets={insets}
@@ -444,12 +447,12 @@ export default function HomeScreen() {
           />
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
-const INPUT_MIN_H = 32;
-const INPUT_MAX_H = 110;
+const INPUT_MIN_H = 46;
+const INPUT_MAX_H = 130;
 
 // Platform-safe floating shadows
 const floatShadow = Platform.select({
@@ -487,7 +490,6 @@ function HomeChatBar({
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
-  const [kbHeight, setKbHeight] = useState(0);
   const [inputH, setInputH] = useState(INPUT_MIN_H);
   const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const profileAnim = useRef(new Animated.Value(1)).current;
@@ -504,16 +506,10 @@ function HomeChatBar({
     }).start();
   }, [inputH]);
 
-  // Native: manually track keyboard height — window never resizes/pans (adjustNothing via plugin).
-  // Only the bar moves. Web: position:fixed handles it automatically.
+  // Shrink back to minimum when text is fully cleared
   useEffect(() => {
-    if (Platform.OS === "web") return;
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (e) => setKbHeight(e.endCoordinates.height));
-    const hideSub = Keyboard.addListener(hideEvent, () => setKbHeight(0));
-    return () => { showSub.remove(); hideSub.remove(); };
-  }, []);
+    if (text === "") setInputH(INPUT_MIN_H);
+  }, [text]);
 
   function animateProfile(val: number) {
     Animated.timing(profileAnim, {
@@ -547,13 +543,13 @@ function HomeChatBar({
   const profileMargin = profileAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] });
   const atMax = inputH >= INPUT_MAX_H;
 
-  // Web:    position:fixed — keyboard never affects layout
-  // Native: position:absolute + kbHeight — window stays completely fixed (adjustNothing),
-  //         only this bar slides up above the keyboard manually
+  // Web:    position:fixed — browser keeps bar above virtual keyboard naturally
+  // Native: in normal document flow — KeyboardAvoidingView at the screen root
+  //         pushes the whole layout up, so no manual kbHeight offset needed
   const positionStyle: any =
     Platform.OS === "web"
       ? { position: "fixed", bottom: 0, left: 0, right: 0 }
-      : { position: "absolute", bottom: kbHeight, left: 0, right: 0 };
+      : {};
 
   return (
     <View style={[barStyles.wrap, positionStyle, { paddingBottom: insets.bottom + 12 }]}>
@@ -627,26 +623,26 @@ const barStyles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    borderRadius: 26,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-    minHeight: 52,
+    borderRadius: 28,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    gap: 10,
+    minHeight: 72,
   },
   input: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    paddingTop: 2,
-    paddingBottom: 2,
+    fontSize: 16,
+    lineHeight: 23,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 2,
+    marginBottom: 0,
   },
 });
 
