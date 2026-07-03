@@ -26,7 +26,15 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-navigation-bar"
+      "expo-navigation-bar",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "ThinkerAI আপনার গ্যালারিতে তৈরি ছবি সেভ করতে অ্যাক্সেস চায়।",
+          "savePhotosPermission": "ThinkerAI আপনার গ্যালারিতে ছবি সেভ করতে অ্যাক্সেস চায়।",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
