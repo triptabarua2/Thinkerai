@@ -388,7 +388,10 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       padding: 20, paddingBottom: 24, gap: 10,
       overflow: "hidden",
     },
-    sheetTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
+    sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+    sheetClose: { padding: 4 },
+    sheetHandle: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 8 },
+    sheetTitle: { fontSize: 18, fontWeight: "700" },
     label: { fontSize: 13, fontWeight: "600", marginTop: 4 },
     labelHint: { fontSize: 12, marginTop: -6 },
     input: {
