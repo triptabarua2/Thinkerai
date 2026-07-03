@@ -136,6 +136,12 @@ export default function WorkflowsScreen() {
 
       {/* List */}
       <ScrollView style={s.list} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+        {/* New Workflow button — always at the top */}
+        <TouchableOpacity style={[s.newTopBtn, { backgroundColor: colors.primary }]} onPress={openCreate} activeOpacity={0.85}>
+          <Feather name="plus" size={16} color="#fff" />
+          <Text style={s.newTopBtnText}>New Workflow</Text>
+        </TouchableOpacity>
+
         {workflows.length === 0 ? (
           <View style={s.empty}>
             <View style={s.emptyIcon}>
@@ -145,10 +151,6 @@ export default function WorkflowsScreen() {
             <Text style={s.emptyDesc}>
               Create a workflow with a name and instruction. The agents will follow that instruction every time you run it.
             </Text>
-            <TouchableOpacity style={s.emptyBtn} onPress={openCreate} activeOpacity={0.8}>
-              <Feather name="plus" size={15} color="#fff" />
-              <Text style={s.emptyBtnText}>New Workflow</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -194,10 +196,6 @@ export default function WorkflowsScreen() {
                 </View>
               </View>
             ))}
-            <TouchableOpacity style={[s.newCard, { borderColor: colors.border }]} onPress={openCreate} activeOpacity={0.7}>
-              <Feather name="plus" size={16} color={colors.textTertiary} />
-              <Text style={[s.newCardText, { color: colors.textTertiary }]}>New Workflow</Text>
-            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -303,12 +301,12 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     },
     emptyTitle: { fontSize: 18, fontWeight: "600", color: colors.text },
     emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 20, paddingHorizontal: 32 },
-    emptyBtn: {
-      flexDirection: "row", alignItems: "center", gap: 6,
-      backgroundColor: colors.primary, borderRadius: 10,
-      paddingHorizontal: 20, paddingVertical: 11, marginTop: 8,
+    newTopBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+      backgroundColor: colors.primary, borderRadius: 12,
+      paddingVertical: 13, marginBottom: 4,
     },
-    emptyBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+    newTopBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
     card: {
       borderRadius: 14, borderWidth: 1, padding: 14, gap: 10,
     },
@@ -332,11 +330,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       width: 34, height: 34, borderRadius: 8, borderWidth: 1,
       alignItems: "center", justifyContent: "center",
     },
-    newCard: {
-      borderRadius: 14, borderWidth: 1, borderStyle: "dashed",
-      padding: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    },
-    newCardText: { fontSize: 14, fontWeight: "500" },
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
     kav: { justifyContent: "flex-end" },
     sheet: {

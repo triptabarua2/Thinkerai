@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import React, { useState } from "react";
-import { Linking, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -33,6 +33,7 @@ export function FinalOutputCard({
   const colors = useColors();
   const [showNotes, setShowNotes] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   async function handleShare() {
     try {
@@ -50,6 +51,20 @@ export function FinalOutputCard({
     await Clipboard.setStringAsync(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  const rawCode = outputContent
+    ? (() => {
+        const m = outputContent.match(/```[\w-]*\n?([\s\S]*?)```/);
+        return m?.[1]?.trim() ?? null;
+      })()
+    : null;
+
+  async function handleCopyCode() {
+    if (!rawCode) return;
+    await Clipboard.setStringAsync(rawCode);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
   }
 
   return (
@@ -123,7 +138,7 @@ export function FinalOutputCard({
             activeOpacity={0.75}
           >
             <Feather name="share-2" size={13} color={colors.primary} />
-            <Text style={[styles.actionBtnText, { color: colors.primary }]}>Share Output</Text>
+            <Text style={[styles.actionBtnText, { color: colors.primary }]}>Share</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -139,9 +154,28 @@ export function FinalOutputCard({
           >
             <Feather name={copied ? "check" : "copy"} size={13} color={copied ? colors.success : colors.textSecondary} />
             <Text style={[styles.actionBtnText, { color: copied ? colors.success : colors.textSecondary }]}>
-              {copied ? "Copied!" : "Copy Output"}
+              {copied ? "Copied!" : "Copy All"}
             </Text>
           </TouchableOpacity>
+
+          {rawCode && (
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                {
+                  backgroundColor: codeCopied ? colors.success + "15" : colors.surface,
+                  borderColor: codeCopied ? colors.success + "40" : colors.border,
+                },
+              ]}
+              onPress={handleCopyCode}
+              activeOpacity={0.75}
+            >
+              <Feather name={codeCopied ? "check" : "code"} size={13} color={codeCopied ? colors.success : colors.textSecondary} />
+              <Text style={[styles.actionBtnText, { color: codeCopied ? colors.success : colors.textSecondary }]}>
+                {codeCopied ? "Copied!" : "Copy Code"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {architectureNotes && (
