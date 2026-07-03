@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,20 +46,23 @@ export default function WorkflowsScreen() {
   const { workflows, createWorkflow, updateWorkflow, deleteWorkflow } = useWorkflows();
   const { createConversation } = useApp();
 
+  const { height: screenHeight } = useWindowDimensions();
+  const sheetHeight = screenHeight * 0.5;
+
   const [modal, setModal] = useState<WorkflowFormModal>({ visible: false, editing: null });
   const [formName, setFormName] = useState("");
   const [formPrompt, setFormPrompt] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Slide-from-top animation
-  const slideAnim = useRef(new Animated.Value(-600)).current;
+  // Slide-from-top animation — travels exactly one sheet-height
+  const slideAnim = useRef(new Animated.Value(-sheetHeight)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (modal.visible) {
       Animated.parallel([
-        Animated.spring(slideAnim, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: false }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: false }),
+        Animated.spring(slideAnim, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
       ]).start();
     }
   }, [modal.visible]);
@@ -66,7 +70,7 @@ export default function WorkflowsScreen() {
   function openCreate() {
     setFormName("");
     setFormPrompt("");
-    slideAnim.setValue(-600);
+    slideAnim.setValue(-sheetHeight);
     fadeAnim.setValue(0);
     setModal({ visible: true, editing: null });
   }
@@ -74,15 +78,15 @@ export default function WorkflowsScreen() {
   function openEdit(wf: Workflow) {
     setFormName(wf.name);
     setFormPrompt(wf.prompt);
-    slideAnim.setValue(-600);
+    slideAnim.setValue(-sheetHeight);
     fadeAnim.setValue(0);
     setModal({ visible: true, editing: wf });
   }
 
   function closeModal() {
     Animated.parallel([
-      Animated.timing(slideAnim, { toValue: -600, duration: 220, useNativeDriver: false }),
-      Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: false }),
+      Animated.timing(slideAnim, { toValue: -sheetHeight, duration: 220, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
     ]).start(() => {
       setModal({ visible: false, editing: null });
       setFormName("");
@@ -240,11 +244,12 @@ export default function WorkflowsScreen() {
             <Pressable style={{ flex: 1 }} onPress={closeModal} />
           </Animated.View>
 
-          {/* Sheet slides down from top */}
+          {/* Sheet slides down from top — covers exactly half the screen */}
           <Animated.View
             style={[
               s.sheet,
               {
+                height: sheetHeight,
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
                 paddingTop: insets.top + 16,
@@ -377,7 +382,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
       borderWidth: 1, borderTopWidth: 0,
       padding: 20, paddingBottom: 24, gap: 10,
-      maxHeight: "55%",
+      overflow: "hidden",
     },
     sheetTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
     label: { fontSize: 13, fontWeight: "600", marginTop: 4 },
