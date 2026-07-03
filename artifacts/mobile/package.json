@@ -57,8 +57,8 @@
   },
   "dependencies": {
     "expo-av": "^16.0.8",
-    "expo-clipboard": "^56.0.4",
-    "expo-document-picker": "^56.0.4",
-    "expo-navigation-bar": "^56.0.3"
+    "expo-clipboard": "^8.0.8",
+    "expo-document-picker": "^14.0.8",
+    "expo-navigation-bar": "^5.0.10"
   }
 }
