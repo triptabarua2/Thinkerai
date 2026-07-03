@@ -12,7 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
+  Dimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,8 +44,8 @@ export default function WorkflowsScreen() {
   const { workflows, createWorkflow, updateWorkflow, deleteWorkflow } = useWorkflows();
   const { createConversation } = useApp();
 
-  const { height: screenHeight } = useWindowDimensions();
-  const sheetHeight = screenHeight * 0.5;
+  // Use screen height (not window height) — stays fixed when keyboard appears
+  const sheetHeight = Dimensions.get("screen").height * 0.5;
 
   const [modal, setModal] = useState<WorkflowFormModal>({ visible: false, editing: null });
   const [formName, setFormName] = useState("");
