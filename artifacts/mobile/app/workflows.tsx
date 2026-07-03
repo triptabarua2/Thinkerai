@@ -1,9 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -49,22 +50,44 @@ export default function WorkflowsScreen() {
   const [formPrompt, setFormPrompt] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Slide-from-top animation
+  const slideAnim = useRef(new Animated.Value(-600)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (modal.visible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: false }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: false }),
+      ]).start();
+    }
+  }, [modal.visible]);
+
   function openCreate() {
     setFormName("");
     setFormPrompt("");
+    slideAnim.setValue(-600);
+    fadeAnim.setValue(0);
     setModal({ visible: true, editing: null });
   }
 
   function openEdit(wf: Workflow) {
     setFormName(wf.name);
     setFormPrompt(wf.prompt);
+    slideAnim.setValue(-600);
+    fadeAnim.setValue(0);
     setModal({ visible: true, editing: wf });
   }
 
   function closeModal() {
-    setModal({ visible: false, editing: null });
-    setFormName("");
-    setFormPrompt("");
+    Animated.parallel([
+      Animated.timing(slideAnim, { toValue: -600, duration: 220, useNativeDriver: false }),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: false }),
+    ]).start(() => {
+      setModal({ visible: false, editing: null });
+      setFormName("");
+      setFormPrompt("");
+    });
   }
 
   async function handleSave() {
@@ -200,77 +223,95 @@ export default function WorkflowsScreen() {
         )}
       </ScrollView>
 
-      {/* Create / Edit Modal */}
+      {/* Create / Edit Modal — slides down from top */}
       <Modal
         visible={modal.visible}
         transparent
-        animationType="slide"
+        animationType="none"
         statusBarTranslucent
         onRequestClose={closeModal}
       >
-        <Pressable style={s.modalOverlay} onPress={closeModal}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={s.kav}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          {/* Dimmed backdrop */}
+          <Animated.View style={[s.modalOverlay, { opacity: fadeAnim }]}>
+            <Pressable style={{ flex: 1 }} onPress={closeModal} />
+          </Animated.View>
+
+          {/* Sheet slides down from top */}
+          <Animated.View
+            style={[
+              s.sheet,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                paddingTop: insets.top + 16,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
           >
-            <Pressable
-              style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: insets.bottom + 16 }]}
-              onPress={() => {}}
-            >
-              <View style={s.sheetHandle} />
+            <View style={s.sheetHeader}>
               <Text style={[s.sheetTitle, { color: colors.text }]}>
                 {modal.editing ? "Edit Workflow" : "New Workflow"}
               </Text>
+              <TouchableOpacity onPress={closeModal} activeOpacity={0.7} style={s.sheetClose}>
+                <Feather name="x" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-              <Text style={[s.label, { color: colors.textSecondary }]}>Name</Text>
-              <TextInput
-                style={[s.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-                value={formName}
-                onChangeText={setFormName}
-                placeholder="e.g. Bangla Copywriter"
-                placeholderTextColor={colors.textTertiary}
-                maxLength={60}
-                returnKeyType="next"
-                autoFocus={!modal.editing}
-              />
+            <Text style={[s.label, { color: colors.textSecondary }]}>Name</Text>
+            <TextInput
+              style={[s.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+              value={formName}
+              onChangeText={setFormName}
+              placeholder="e.g. Bangla Copywriter"
+              placeholderTextColor={colors.textTertiary}
+              maxLength={60}
+              returnKeyType="next"
+              autoFocus={!modal.editing}
+            />
 
-              <Text style={[s.label, { color: colors.textSecondary }]}>Instruction</Text>
-              <Text style={[s.labelHint, { color: colors.textTertiary }]}>
-                Agents will follow this instruction on every message in this workflow.
-              </Text>
-              <TextInput
-                style={[s.textarea, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-                value={formPrompt}
-                onChangeText={setFormPrompt}
-                placeholder="e.g. Always reply in Bengali. Write short social media captions only. Do not use emojis."
-                placeholderTextColor={colors.textTertiary}
-                multiline
-                numberOfLines={6}
-                maxLength={2000}
-                textAlignVertical="top"
-              />
-              <Text style={[s.charCount, { color: colors.textTertiary }]}>{formPrompt.length}/2000</Text>
+            <Text style={[s.label, { color: colors.textSecondary }]}>Instruction</Text>
+            <Text style={[s.labelHint, { color: colors.textTertiary }]}>
+              Agents will follow this instruction on every message in this workflow.
+            </Text>
+            <TextInput
+              style={[s.textarea, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+              value={formPrompt}
+              onChangeText={setFormPrompt}
+              placeholder="e.g. Always reply in Bengali. Write short social media captions only. Do not use emojis."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              numberOfLines={5}
+              maxLength={2000}
+              textAlignVertical="top"
+            />
+            <Text style={[s.charCount, { color: colors.textTertiary }]}>{formPrompt.length}/2000</Text>
 
-              <View style={s.sheetBtns}>
-                <TouchableOpacity
-                  style={[s.cancelBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-                  activeOpacity={0.7}
-                  onPress={closeModal}
-                >
-                  <Text style={[s.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}
-                  activeOpacity={0.8}
-                  onPress={handleSave}
-                  disabled={saving}
-                >
-                  <Text style={s.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Pressable>
+            <View style={s.sheetBtns}>
+              <TouchableOpacity
+                style={[s.cancelBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                activeOpacity={0.7}
+                onPress={closeModal}
+              >
+                <Text style={[s.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}
+                activeOpacity={0.8}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                <Text style={s.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Drag handle at bottom */}
+            <View style={s.sheetHandle} />
+          </Animated.View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -330,16 +371,13 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       width: 34, height: 34, borderRadius: 8, borderWidth: 1,
       alignItems: "center", justifyContent: "center",
     },
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-    kav: { justifyContent: "flex-end" },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-start" },
+    kav: { justifyContent: "flex-start" },
     sheet: {
-      borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      borderWidth: 1, borderBottomWidth: 0,
-      padding: 20, gap: 10,
-    },
-    sheetHandle: {
-      width: 36, height: 4, borderRadius: 2,
-      backgroundColor: colors.border, alignSelf: "center", marginBottom: 8,
+      borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
+      borderWidth: 1, borderTopWidth: 0,
+      padding: 20, paddingBottom: 24, gap: 10,
+      maxHeight: "55%",
     },
     sheetTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
     label: { fontSize: 13, fontWeight: "600", marginTop: 4 },
