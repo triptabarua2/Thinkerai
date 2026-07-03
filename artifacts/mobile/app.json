@@ -14,7 +14,11 @@
       "backgroundColor": "#080811"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "ThinkerAI needs access to save generated images to your photo library.",
+        "NSPhotoLibraryUsageDescription": "ThinkerAI needs access to your photo library to save generated images."
+      }
     },
     "android": {
       "backgroundColor": "#080811"
@@ -27,11 +31,12 @@
       "expo-font",
       "expo-web-browser",
       "expo-navigation-bar",
+      "./plugins/withLocalizedPermissions",
       [
         "expo-media-library",
         {
-          "photosPermission": "ThinkerAI আপনার গ্যালারিতে তৈরি ছবি সেভ করতে অ্যাক্সেস চায়।",
-          "savePhotosPermission": "ThinkerAI আপনার গ্যালারিতে ছবি সেভ করতে অ্যাক্সেস চায়।",
+          "photosPermission": "ThinkerAI needs access to save generated images to your photo library.",
+          "savePhotosPermission": "ThinkerAI needs access to your photo library to save generated images.",
           "isAccessMediaLocationEnabled": true
         }
       ]

@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { cacheDirectory, downloadAsync } from "expo-file-system/legacy";
+import { getLocales } from "expo-localization";
 import * as MediaLibrary from "expo-media-library";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -56,19 +57,56 @@ export function ImageOutputCard({
     if (imageUri) setSaveState("idle");
   }, [imageUri]);
 
+  // Returns true if the primary device locale is Bengali (bn, bn-BD, etc.)
+  function isBengali(): boolean {
+    const locales = getLocales();
+    const first = locales[0];
+    return (
+      first?.languageCode === "bn" ||
+      (first?.languageTag?.startsWith("bn") ?? false)
+    );
+  }
+
   // Save image to device gallery
   async function saveToGallery(uri: string): Promise<void> {
     try {
       setSaveState("saving");
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
+      const bn = isBengali();
+
+      // Check current permission status
+      const { status: existing, canAskAgain } =
+        await MediaLibrary.getPermissionsAsync();
+
+      if (existing === "granted") {
+        // Already allowed — proceed directly
+      } else if (!canAskAgain) {
+        // Previously denied and can't prompt again — guide to Settings
         Alert.alert(
-          "অনুমতি দরকার",
-          "ছবি গ্যালারিতে সেভ করতে Settings থেকে Photos অনুমতি দিন।",
-          [{ text: "ঠিক আছে" }]
+          bn ? "অনুমতি দেওয়া হয়নি" : "Permission Denied",
+          bn
+            ? "Settings থেকে Photos অনুমতি চালু করলে ছবি গ্যালারিতে সেভ করা যাবে।"
+            : "Go to Settings and enable Photos access to save images to your gallery.",
+          [{ text: bn ? "ঠিক আছে" : "OK" }]
         );
         setSaveState("error");
         return;
+      } else {
+        // First time (undetermined) — show a friendly rationale before the system dialog
+        await new Promise<void>((resolve) =>
+          Alert.alert(
+            bn ? "গ্যালারি অ্যাক্সেস" : "Gallery Access",
+            bn
+              ? "ThinkerAI-এর তৈরি ছবি আপনার গ্যালারিতে সেভ করতে অনুমতি দরকার।"
+              : "ThinkerAI needs permission to save generated images to your photo library.",
+            [{ text: bn ? "ঠিক আছে" : "OK", onPress: () => resolve() }]
+          )
+        );
+
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== "granted") {
+          setSaveState("error");
+          return;
+        }
       }
 
       // Download remote URL to local cache first
