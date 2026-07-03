@@ -176,12 +176,21 @@ export async function runThinkerCore(
     imageApproved?: boolean;
     conversationId?: string;
     pipelineStateId?: string;
+    workflowSystemPrompt?: string;
   }
 ): Promise<void> {
   const startTime = Date.now();
   const planTier: PlanTier = options?.planTier ?? "free";
   const conversationId = options?.conversationId;
   const pipelineStateId = options?.pipelineStateId;
+
+  // ── Workflow System Prompt injection ──────────────────────────────────────
+  // If the request was triggered from a saved Workflow, prepend the user's
+  // workflow instruction so every agent in the pipeline follows it.
+  const workflowSystemPrompt = options?.workflowSystemPrompt?.trim();
+  const effectiveMessage = workflowSystemPrompt
+    ? `[WORKFLOW INSTRUCTION — follow this for your entire response]\n${workflowSystemPrompt}\n[END INSTRUCTION]\n\n${message}`
+    : message;
 
   // ── DB persistence helpers (fire-and-forget, never block pipeline) ──────
   function persistLog(log: AgentLog): void {
@@ -393,7 +402,7 @@ export async function runThinkerCore(
     });
   } else {
     emit({ type: "agent_start", agent: "intent", label: "Analyzing your request..." });
-    intentResult = await runIntentAgent(message, history);
+    intentResult = await runIntentAgent(effectiveMessage, history);
     persistLog({
       agent_name: "intent",
       input_summary: `Message: "${message.slice(0, 80)}"`,
@@ -480,7 +489,7 @@ export async function runThinkerCore(
     try {
       const chatMessages: { role: "user" | "assistant"; content: string }[] = [
         ...history,
-        { role: "user", content: message },
+        { role: "user", content: effectiveMessage },
       ];
 
       emit({ type: "agent_start", agent: "verification", label: "Verifying response..." });
@@ -530,7 +539,7 @@ export async function runThinkerCore(
   emit({ type: "agent_start", agent: "clarification", label: "Understanding your requirements..." });
 
   const clarification = await runClarificationAgent(
-    message,
+    effectiveMessage,
     state.intentType,
     state.thinkingLevel,
     history,
@@ -609,7 +618,7 @@ export async function runThinkerCore(
     emit({ type: "agent_start", agent: "strategy", label: "Thinking strategically about your goal..." });
 
     const strategyResult = await runStrategyAgent(
-      message,
+      effectiveMessage,
       state.intentType,
       state.requirements,
       state.signatureQuestionResponse,
@@ -685,7 +694,7 @@ export async function runThinkerCore(
       emit({ type: "agent_start", agent: "planner", label: "Creating execution plan..." });
 
       const planResult = await runPlannerAgent(
-        message,
+        effectiveMessage,
         state.intentType,
         state.requirements,
         state.strategyBrief,
@@ -731,7 +740,7 @@ export async function runThinkerCore(
         state.current_agent = "research";
         state.status = "researching";
         emit({ type: "agent_start", agent: "research", label: "Gathering context..." });
-        state.researchFindings = await runResearchAgent(researchSteps, message, lang);
+        state.researchFindings = await runResearchAgent(researchSteps, effectiveMessage, lang);
         persistLog({
           agent_name: "research",
           input_summary: `${researchSteps.length} steps need research`,
@@ -844,7 +853,7 @@ export async function runThinkerCore(
         emit({ type: "agent_start", agent: "builder", label: `Building your deliverable${retryLabel}...` });
 
         const builderOutput = await runBuilderAgent(
-          message,
+          effectiveMessage,
           codeSteps.length > 0 ? codeSteps : state.plan,
           state.researchFindings,
           state.requirements,

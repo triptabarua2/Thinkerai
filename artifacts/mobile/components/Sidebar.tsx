@@ -414,7 +414,7 @@ export function Sidebar({ visible, onClose }: Props) {
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
           {[
             { icon: "folder", label: "Projects", onPress: () => { onClose(); router.push("/projects" as any); } },
-            { icon: "zap", label: "Workflows", onPress: () => { Alert.alert("Workflows", "Workflow automation is coming soon.", [{ text: "OK" }]); } },
+            { icon: "zap", label: "Workflows", onPress: () => { onClose(); router.push("/workflows" as any); } },
             { icon: "settings", label: "Settings", onPress: () => { onClose(); router.push("/settings" as any); } },
           ].map((item) => (
             <TouchableOpacity

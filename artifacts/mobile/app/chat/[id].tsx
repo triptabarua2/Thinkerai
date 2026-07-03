@@ -86,7 +86,9 @@ function buildInitialSteps(): AgentStep[] {
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id, q } = useLocalSearchParams<{ id: string; q?: string }>();
+  const { id, q, workflowPrompt, workflowName } = useLocalSearchParams<{ id: string; q?: string; workflowPrompt?: string; workflowName?: string }>();
+  const activeWorkflowPrompt = workflowPrompt ? decodeURIComponent(workflowPrompt) : undefined;
+  const activeWorkflowName = workflowName ? decodeURIComponent(workflowName) : undefined;
   const { getConversation, updateConversation, createConversation } = useApp();
   useRTL(undefined);
 
@@ -743,6 +745,7 @@ export default function ChatScreen() {
           versionHistory: versionHistory.length > 0 ? versionHistory : undefined,
           currentVersion: currentVersion > 0 ? currentVersion : undefined,
           conversationId: id,
+          workflowSystemPrompt: activeWorkflowPrompt,
         }),
       });
 

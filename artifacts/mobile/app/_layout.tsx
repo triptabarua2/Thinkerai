@@ -18,6 +18,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SplashAnimation } from "@/components/SplashAnimation";
 import { AppProvider } from "@/context/AppContext";
+import { WorkflowProvider } from "@/context/WorkflowContext";
 import colors from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
@@ -34,6 +35,7 @@ function RootLayoutNav() {
       <Stack.Screen name="profile" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="voice" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="projects" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="workflows" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
 }
@@ -80,6 +82,7 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AppProvider>
+                <WorkflowProvider>
                 <StatusBar
                   style={isLight ? "dark" : "light"}
                   backgroundColor={bg}
@@ -89,6 +92,7 @@ export default function RootLayout() {
                 {!splashDone && (
                   <SplashAnimation onFinish={handleSplashFinish} />
                 )}
+              </WorkflowProvider>
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

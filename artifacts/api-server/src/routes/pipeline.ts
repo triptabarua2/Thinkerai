@@ -26,6 +26,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     versionHistory,
     currentVersion,
     conversationId,
+    workflowSystemPrompt,
   } = req.body as {
     messages?: { role: "user" | "assistant"; content: string }[];
     message?: string;
@@ -46,6 +47,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     versionHistory?: VersionSnapshot[];
     currentVersion?: number;
     conversationId?: string;
+    workflowSystemPrompt?: string;
   };
 
   const allMessages = messages ?? [];
@@ -93,6 +95,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       versionHistory,
       currentVersion,
       conversationId,
+      workflowSystemPrompt,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
