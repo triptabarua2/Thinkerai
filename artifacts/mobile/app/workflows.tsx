@@ -390,7 +390,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     sheetHandle: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 8 },
     sheetTitle: { fontSize: 18, fontWeight: "700" },
     label: { fontSize: 13, fontWeight: "600", marginTop: 4 },
-    labelHint: { fontSize: 12, marginTop: -6 },
+    labelHint: { fontSize: 12, marginTop: 2, marginBottom: 4 },
     input: {
       borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
       fontSize: 15, height: 46,
