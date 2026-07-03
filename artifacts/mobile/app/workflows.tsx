@@ -155,18 +155,14 @@ export default function WorkflowsScreen() {
           <Text style={s.headerTitle}>Workflows</Text>
         </View>
         <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.7}>
-          <Feather name="plus" size={20} color={colors.primary} />
+          <View style={s.addBtnInner}>
+            <Feather name="plus" size={18} color="#fff" />
+          </View>
         </TouchableOpacity>
       </View>
 
       {/* List */}
       <ScrollView style={s.list} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
-        {/* New Workflow button — always at the top */}
-        <TouchableOpacity style={[s.newTopBtn, { backgroundColor: colors.primary }]} onPress={openCreate} activeOpacity={0.85}>
-          <Feather name="plus" size={16} color="#fff" />
-          <Text style={s.newTopBtnText}>New Workflow</Text>
-        </TouchableOpacity>
-
         {workflows.length === 0 ? (
           <View style={s.empty}>
             <View style={s.emptyIcon}>
@@ -338,6 +334,11 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center" },
     headerTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
     addBtn: { padding: 6 },
+    addBtnInner: {
+      width: 32, height: 32, borderRadius: 10,
+      backgroundColor: "#0D9488",
+      alignItems: "center", justifyContent: "center",
+    },
     list: { flex: 1 },
     listContent: { padding: 16, gap: 12, paddingBottom: 40 },
     empty: { alignItems: "center", paddingTop: 80, gap: 12 },
@@ -348,12 +349,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     },
     emptyTitle: { fontSize: 18, fontWeight: "600", color: colors.text },
     emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 20, paddingHorizontal: 32 },
-    newTopBtn: {
-      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-      backgroundColor: colors.primary, borderRadius: 12,
-      paddingVertical: 13, marginBottom: 4,
-    },
-    newTopBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
     card: {
       borderRadius: 14, borderWidth: 1, padding: 14, gap: 10,
     },
@@ -399,7 +394,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
       fontSize: 14, minHeight: 120,
     },
-    charCount: { fontSize: 11, textAlign: "right", marginTop: -6 },
+    charCount: { fontSize: 11, textAlign: "right", marginTop: 4 },
     sheetBtns: { flexDirection: "row", gap: 10, marginTop: 6 },
     cancelBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" },
     cancelBtnText: { fontSize: 15, fontWeight: "500" },
