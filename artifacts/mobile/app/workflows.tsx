@@ -261,6 +261,7 @@ export default function WorkflowsScreen() {
               },
             ]}
           >
+            {/* Header */}
             <View style={s.sheetHeader}>
               <Text style={[s.sheetTitle, { color: colors.text }]}>
                 {modal.editing ? "Edit Workflow" : "New Workflow"}
@@ -270,35 +271,39 @@ export default function WorkflowsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[s.label, { color: colors.textSecondary }]}>Name</Text>
-            <TextInput
-              style={[s.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-              value={formName}
-              onChangeText={setFormName}
-              placeholder="e.g. Bangla Copywriter"
-              placeholderTextColor={colors.textTertiary}
-              maxLength={60}
-              returnKeyType="next"
-              autoFocus={!modal.editing}
-            />
+            {/* Scrollable fields */}
+            <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={[s.label, { color: colors.textSecondary }]}>Name</Text>
+              <TextInput
+                style={[s.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+                value={formName}
+                onChangeText={setFormName}
+                placeholder="e.g. Bangla Copywriter"
+                placeholderTextColor={colors.textTertiary}
+                maxLength={60}
+                returnKeyType="next"
+                autoFocus={!modal.editing}
+              />
 
-            <Text style={[s.label, { color: colors.textSecondary }]}>Instruction</Text>
-            <Text style={[s.labelHint, { color: colors.textTertiary }]}>
-              Agents will follow this instruction on every message in this workflow.
-            </Text>
-            <TextInput
-              style={[s.textarea, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-              value={formPrompt}
-              onChangeText={setFormPrompt}
-              placeholder="e.g. Always reply in Bengali. Write short social media captions only. Do not use emojis."
-              placeholderTextColor={colors.textTertiary}
-              multiline
-              numberOfLines={5}
-              maxLength={2000}
-              textAlignVertical="top"
-            />
-            <Text style={[s.charCount, { color: colors.textTertiary }]}>{formPrompt.length}/2000</Text>
+              <Text style={[s.label, { color: colors.textSecondary, marginTop: 8 }]}>Instruction</Text>
+              <Text style={[s.labelHint, { color: colors.textTertiary }]}>
+                Agents will follow this instruction on every message in this workflow.
+              </Text>
+              <TextInput
+                style={[s.textarea, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+                value={formPrompt}
+                onChangeText={setFormPrompt}
+                placeholder="e.g. Always reply in Bengali. Write short social media captions only. Do not use emojis."
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={4}
+                maxLength={2000}
+                textAlignVertical="top"
+              />
+              <Text style={[s.charCount, { color: colors.textTertiary }]}>{formPrompt.length}/2000</Text>
+            </ScrollView>
 
+            {/* Buttons — always visible at bottom */}
             <View style={s.sheetBtns}>
               <TouchableOpacity
                 style={[s.cancelBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
@@ -316,9 +321,6 @@ export default function WorkflowsScreen() {
                 <Text style={s.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Drag handle at bottom */}
-            <View style={s.sheetHandle} />
           </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
