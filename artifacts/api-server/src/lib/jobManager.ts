@@ -109,3 +109,32 @@ export function markJobComplete(jobId: string, failed = false): void {
     job.approvalType = null;
   }
 }
+
+export interface JobSummary {
+  jobId: string;
+  conversationId: string;
+  status: Job["status"];
+  approvalType: Job["approvalType"];
+  createdAt: number;
+}
+
+/**
+ * Returns a summary list of all non-expired jobs for a given userId,
+ * sorted newest first. Includes running, awaiting_approval, complete, and failed.
+ */
+export function listJobsForUser(userId: string, limit = 20): JobSummary[] {
+  const results: JobSummary[] = [];
+  for (const job of jobs.values()) {
+    if (job.userId === userId) {
+      results.push({
+        jobId: job.id,
+        conversationId: job.conversationId,
+        status: job.status,
+        approvalType: job.approvalType,
+        createdAt: job.createdAt,
+      });
+    }
+  }
+  results.sort((a, b) => b.createdAt - a.createdAt);
+  return results.slice(0, limit);
+}

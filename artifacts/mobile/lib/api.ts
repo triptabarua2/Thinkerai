@@ -65,6 +65,30 @@ export async function createPortalSession(userId = "default"): Promise<string | 
   }
 }
 
+export interface JobSummary {
+  jobId: string;
+  conversationId: string;
+  status: "running" | "awaiting_approval" | "complete" | "failed";
+  approvalType: "blueprint" | "output" | null;
+  createdAt: number;
+}
+
+export interface JobsResponse {
+  jobs: JobSummary[];
+  pendingCount: number;
+}
+
+/** Fetch recent background jobs for the notification bell. */
+export async function fetchJobs(userId = "default"): Promise<JobsResponse> {
+  try {
+    const res = await fetch(`${getBaseUrl()}api/notifications/jobs?userId=${userId}`);
+    if (!res.ok) return { jobs: [], pendingCount: 0 };
+    return await res.json() as JobsResponse;
+  } catch {
+    return { jobs: [], pendingCount: 0 };
+  }
+}
+
 /** Get the live credit balance and plan tier for a user. */
 export async function getCredits(userId = "default"): Promise<{
   planTier: "free" | "pro" | "founder";

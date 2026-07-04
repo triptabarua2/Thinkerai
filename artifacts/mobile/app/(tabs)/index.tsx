@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BlurView } from "expo-blur";
+import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -233,14 +234,9 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={handleNewChat}
-          activeOpacity={0.7}
-          hitSlop={8}
-        >
-          <Feather name="edit" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <NotificationBell
+          iconBtnStyle={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+        />
       </BlurView>
 
       <View style={[styles.content, { flex: 1, paddingTop: HEADER_H + 16 }]}>
