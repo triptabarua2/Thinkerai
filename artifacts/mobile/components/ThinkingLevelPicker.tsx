@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 
-export type ThinkingLevel = "low" | "medium" | "high" | "consensus";
+export type ThinkingLevel = "auto" | "low" | "medium" | "high" | "consensus";
 
 interface LevelDef {
   id: ThinkingLevel;
@@ -25,6 +25,15 @@ interface LevelDef {
 }
 
 const LEVELS: LevelDef[] = [
+  {
+    id: "auto",
+    label: "Auto",
+    icon: "cpu",
+    dots: 0,
+    credits: "Thinker decides",
+    description: "Backend picks Low / Medium / High based on your request",
+    color: "#0D9488",
+  },
   {
     id: "low",
     label: "Low",
@@ -63,7 +72,27 @@ const LEVELS: LevelDef[] = [
   },
 ];
 
+/** count=0 → "Auto" magic indicator; count 1-4 → filled dots */
 function Dots({ count, color, size = 6 }: { count: number; color: string; size?: number }) {
+  if (count === 0) {
+    // Auto: show three animated-looking dots that are all the same color (teal)
+    return (
+      <View style={{ flexDirection: "row", gap: 2, alignItems: "center" }}>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <View
+            key={i}
+            style={{
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: color,
+              opacity: 0.5 + i * 0.25,
+            }}
+          />
+        ))}
+      </View>
+    );
+  }
   return (
     <View style={{ flexDirection: "row", gap: 2, alignItems: "center" }}>
       {Array.from({ length: 4 }).map((_, i) => (

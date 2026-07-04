@@ -15,6 +15,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useSettings } from "@/hooks/useSettings";
+import type { ThinkingLevel } from "@/components/ThinkingLevelPicker";
 
 const TABS = [
   { id: "general", label: "General", icon: "settings" },
@@ -145,11 +147,23 @@ function comingSoon(feature: string) {
   Alert.alert("Coming Soon", `${feature} will be available in a future update.`, [{ text: "OK" }]);
 }
 
+const LEVEL_LABELS: Record<string, string> = {
+  auto: "Auto",
+  low: "Low (1 credit)",
+  medium: "Medium (9 credits)",
+  high: "High (66 credits)",
+  consensus: "Consensus (99 credits)",
+};
+const LABEL_TO_LEVEL: Record<string, string> = Object.fromEntries(
+  Object.entries(LEVEL_LABELS).map(([k, v]) => [v, k])
+);
+
 function GeneralTab() {
+  const { settings, updateSettings } = useSettings();
   const [appLang, setAppLang] = useState("Auto-detect");
   const [responseLang, setResponseLang] = useState("User's language");
   const [commentLang, setCommentLang] = useState("English");
-  const [thinkingLevel, setThinkingLevel] = useState("Auto");
+  const thinkingLevelLabel = LEVEL_LABELS[settings.defaultThinkingLevel] ?? "Auto";
   const [domain, setDomain] = useState("None");
   const [theme, setTheme] = useState("System");
   const [fontSize, setFontSize] = useState("Medium");
@@ -178,8 +192,19 @@ function GeneralTab() {
       <SectionHeader title="DEFAULTS" />
       <SelectRow
         label="Default Thinking Level"
-        value={thinkingLevel}
-        onPress={() => showPicker("Default Thinking Level", ["Auto", "Low (1 credit)", "Medium (9 credits)", "High (66 credits)", "Consensus (99 credits)"], thinkingLevel, setThinkingLevel)}
+        value={thinkingLevelLabel}
+        onPress={() =>
+          showPicker(
+            "Default Thinking Level",
+            ["Auto", "Low (1 credit)", "Medium (9 credits)", "High (66 credits)", "Consensus (99 credits)"],
+            thinkingLevelLabel,
+            (label) => {
+              const level = (LABEL_TO_LEVEL[label] ?? "auto") as import("@/components/ThinkingLevelPicker").ThinkingLevel;
+              const isAuto = level === "auto";
+              updateSettings({ defaultThinkingLevel: level, autoSelectLevel: isAuto });
+            }
+          )
+        }
       />
       <SelectRow
         label="Default domain"
@@ -215,7 +240,8 @@ function GeneralTab() {
 }
 
 function PipelineTab() {
-  const [autoLevel, setAutoLevel] = useState(true);
+  const { settings, updateSettings } = useSettings();
+  const autoLevel = settings.autoSelectLevel;
   const [showCreditCost, setShowCreditCost] = useState(true);
   const [showProgress, setShowProgress] = useState(true);
   const [showLevelBadge, setShowLevelBadge] = useState(true);
@@ -232,7 +258,15 @@ function PipelineTab() {
         label="Auto-select Thinking Level"
         sub="Thinker picks the right depth for each request"
         value={autoLevel}
-        onChange={setAutoLevel}
+        onChange={(v) => {
+          // When turning auto OFF: if stored default is still "auto", fall back to
+          // "medium" so the user gets a real level, not another auto selection.
+          const fallback =
+            !v && (settings.defaultThinkingLevel === "auto" || !settings.defaultThinkingLevel)
+              ? "medium"
+              : settings.defaultThinkingLevel;
+          updateSettings({ autoSelectLevel: v, defaultThinkingLevel: v ? "auto" : fallback });
+        }}
       />
       <ToggleRow
         label="Show credit cost before sending"

@@ -44,6 +44,7 @@ import { getBaseUrl } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
 import { applyRTL, useRTL } from "@/hooks/useRTL";
 import { useOfflineQueue, type PendingMessage } from "@/hooks/useOfflineQueue";
+import { useSettings } from "@/hooks/useSettings";
 
 let msgCounter = 0;
 function genId(): string {
@@ -90,6 +91,7 @@ export default function ChatScreen() {
   const activeWorkflowPrompt = workflowPrompt ? decodeURIComponent(workflowPrompt) : undefined;
   const activeWorkflowName = workflowName ? decodeURIComponent(workflowName) : undefined;
   const { getConversation, updateConversation, createConversation } = useApp();
+  const { effectiveDefaultLevel, loaded: settingsLoaded } = useSettings();
   useRTL(undefined);
 
   const conv = getConversation(id ?? "");
@@ -98,7 +100,7 @@ export default function ChatScreen() {
   const [showTyping, setShowTyping] = useState(false);
   const [agentType, setAgentType] = useState<AgentType>(conv?.agentType ?? "ceo");
   const [clarifyState, setClarifyState] = useState<ClarifyState>({ status: "idle" });
-  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("medium");
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("auto");
   const [PLAN_TIER, setPlanTier] = useState<"free" | "pro" | "founder">("free");
   const [selectedDomain, setSelectedDomain] = useState<string>("general");
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
@@ -111,7 +113,7 @@ export default function ChatScreen() {
   // Credit confirmation
   const [creditModalVisible, setCreditModalVisible] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
-  const CREDIT_COST: Record<ThinkingLevel, number> = { low: 1, medium: 9, high: 66, consensus: 99 };
+  const CREDIT_COST: Record<ThinkingLevel, number> = { auto: 0, low: 1, medium: 9, high: 66, consensus: 99 };
   const [CREDIT_BALANCE, setCreditBalance] = useState(0);
 
   // Fetch the user's real plan tier + credit balance from the backend
@@ -139,6 +141,11 @@ export default function ChatScreen() {
   useEffect(() => {
     refreshCredits();
   }, [refreshCredits]);
+
+  // Load default thinking level from persisted settings once loaded
+  useEffect(() => {
+    if (settingsLoaded) setThinkingLevel(effectiveDefaultLevel);
+  }, [settingsLoaded, effectiveDefaultLevel]);
 
   // Fix counters
   const [mediumFixCount, setMediumFixCount] = useState(conv?.medium_fix_count ?? 0);
@@ -296,8 +303,10 @@ export default function ChatScreen() {
       updateConversation(id, { medium_fix_count: next });
     }
 
-    // Credit gate — show confirmation once per thinking level per session
-    if (thinkingLevel !== "low" && CREDIT_COST[thinkingLevel] > 3 && !creditConfirmedLevels.current.has(thinkingLevel)) {
+    // Credit gate — show confirmation once per thinking level per session.
+    // Skip for "auto": backend resolves the level and already emits thinking_summary
+    // with the real cost, so no pre-send blocking needed.
+    if (thinkingLevel !== "auto" && thinkingLevel !== "low" && CREDIT_COST[thinkingLevel] > 3 && !creditConfirmedLevels.current.has(thinkingLevel)) {
       setPendingMessage(text);
       setCreditModalVisible(true);
       return;
@@ -972,8 +981,21 @@ export default function ChatScreen() {
             case "thinking_summary": {
               const level = event.thinkingLevel as ThinkingLevel;
               const credits = event.estimatedCredits as number;
+              const autoResolved = event.autoResolved as boolean | undefined;
               const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
-              setPipelineLabel(`${levelLabel} Thinking · ~${credits} credits`);
+              setPipelineLabel(
+                autoResolved
+                  ? `Auto → ${levelLabel} Thinking · ~${credits} credits`
+                  : `${levelLabel} Thinking · ~${credits} credits`
+              );
+              break;
+            }
+
+            case "credit_confirm": {
+              // For "auto" mode: user already trusted backend to pick the level,
+              // so credit_confirm is informational — pipelineLabel already shows cost.
+              // For explicit levels: this is a redundant server-side event (client already
+              // gated pre-send), so no further action needed.
               break;
             }
 

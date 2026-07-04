@@ -52,6 +52,7 @@ export function estimateSessionCredits(thinkingLevel: ThinkingLevel): number {
     case "medium": return 9;
     case "high": return 66;
     case "consensus": return 99;
+    case "auto": return 0; // resolved by Intent Agent before this is called
     default: return 1;
   }
 }
@@ -85,5 +86,6 @@ export function getThinkingLevelCredits(level: ThinkingLevel): number {
     case "medium": return 9;
     case "high": return 66;
     case "consensus": return 99;
+    case "auto": return 0; // never called directly; resolved first
   }
 }

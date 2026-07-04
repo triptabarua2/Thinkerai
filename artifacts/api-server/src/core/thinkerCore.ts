@@ -385,7 +385,10 @@ export async function runThinkerCore(
     intentResult = {
       intent: derivedIntent,
       confidence: 100,
-      thinkingLevel: options?.thinkingLevelOverride ?? "high",
+      thinkingLevel:
+        !options?.thinkingLevelOverride || options.thinkingLevelOverride === "auto"
+          ? "high"
+          : options.thinkingLevelOverride,
       domain: options.domain!,
       detectedLanguage: options?.detectedLanguage ?? "en",
       next_action: "proceed",
@@ -417,7 +420,21 @@ export async function runThinkerCore(
   }
 
   state.intentType = intentResult.intent;
-  state.thinkingLevel = options?.thinkingLevelOverride ?? intentResult.thinkingLevel;
+
+  // "auto" means let Intent Agent decide — but cap at "high" (never force consensus
+  // automatically; consensus = user's explicit, expensive choice).
+  const wasAutoLevel =
+    !options?.thinkingLevelOverride || options.thinkingLevelOverride === "auto";
+
+  // Harden Intent Agent result: coerce any unexpected value to a safe concrete level.
+  // Intent Agent should never return "auto" or "consensus" here (auto is a frontend
+  // concept; consensus is user-explicit). Cap at "high" if it somehow does.
+  const safeIntentLevel = ((): ThinkingLevel => {
+    const l = intentResult.thinkingLevel;
+    if (l === "low" || l === "medium" || l === "high") return l;
+    return "high"; // consensus → high, auto → high (fallback)
+  })();
+  state.thinkingLevel = wasAutoLevel ? safeIntentLevel : options.thinkingLevelOverride!;
 
   // Language detection
   const lang = options?.detectedLanguage ?? intentResult.detectedLanguage ?? "en";
@@ -440,20 +457,30 @@ export async function runThinkerCore(
     medium: "Medium Analysis",
     high: "Deep Thinking",
     consensus: "Consensus Validation",
+    auto: "Auto", // resolved before reaching here; included for type completeness
   };
   emit({
     type: "thinking_summary",
-    summary: `**${levelLabels[state.thinkingLevel]}** — ${
-      state.thinkingLevel === "low"
-        ? "answering directly."
-        : state.thinkingLevel === "medium"
-        ? "running analysis pipeline."
-        : state.thinkingLevel === "consensus"
-        ? "running full multi-model validation."
-        : "running full agent pipeline."
-    }`,
+    summary: wasAutoLevel
+      ? `**Auto → ${levelLabels[state.thinkingLevel]}** — ${
+          state.thinkingLevel === "low"
+            ? "answering directly."
+            : state.thinkingLevel === "medium"
+            ? "running analysis pipeline."
+            : "running full agent pipeline."
+        }`
+      : `**${levelLabels[state.thinkingLevel]}** — ${
+          state.thinkingLevel === "low"
+            ? "answering directly."
+            : state.thinkingLevel === "medium"
+            ? "running analysis pipeline."
+            : state.thinkingLevel === "consensus"
+            ? "running full multi-model validation."
+            : "running full agent pipeline."
+        }`,
     thinkingLevel: state.thinkingLevel,
     estimatedCredits,
+    autoResolved: wasAutoLevel,
   });
 
   // ── Think Credits Confirmation (Section 21, §10.7) ───────────────────────

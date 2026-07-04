@@ -1,6 +1,6 @@
 export type IntentType = "chat" | "app" | "website" | "game" | "task";
 
-export type ThinkingLevel = "low" | "medium" | "high" | "consensus";
+export type ThinkingLevel = "low" | "medium" | "high" | "consensus" | "auto";
 
 export type NextAction = "proceed" | "retry" | "replan" | "clarify" | "escalate" | "direct_answer" | "halt";
 
@@ -225,7 +225,7 @@ export type PipelineEvent =
   | { type: "clarification_needed"; questions: ClarificationQuestion[]; intent: IntentType; layer?: string }
   | { type: "signature_question"; question: string }
   | { type: "strategy_brief"; brief: string; assessment: string; founderMode: boolean }
-  | { type: "thinking_summary"; summary: string; thinkingLevel: ThinkingLevel; estimatedCredits: number }
+  | { type: "thinking_summary"; summary: string; thinkingLevel: ThinkingLevel; estimatedCredits: number; autoResolved?: boolean }
   | { type: "blueprint_ready"; steps: PlanStep[]; techStack: string; estimatedComplexity: string }
   | { type: "stage_3_building"; totalSteps: number; stepDescriptions: string[] }
   | { type: "decision_saved"; rule: string; confirmation: string }
