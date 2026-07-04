@@ -137,7 +137,7 @@ export function AgentPanel({ agentType, isStreaming, planTier = "free", onAgentC
           style={[styles.pill, { backgroundColor: agent.color + "18", borderColor: agent.color + "55" }]}
         >
           <View style={[styles.pillIcon, { backgroundColor: agent.color + "30" }]}>
-            <Feather name={agent.icon as any} size={14} color={agent.color} />
+            <Feather name={agent.icon as any} size={12} color={agent.color} />
           </View>
           <Text style={[styles.pillName, { color: agent.color }]}>{agent.name}</Text>
           {agent.planTier === "pro" && (
@@ -145,7 +145,7 @@ export function AgentPanel({ agentType, isStreaming, planTier = "free", onAgentC
               <Text style={styles.pillProText}>PRO</Text>
             </View>
           )}
-          {!isStreaming && <Feather name="chevron-down" size={14} color={agent.color} />}
+          {!isStreaming && <Feather name="chevron-down" size={12} color={agent.color} />}
         </TouchableOpacity>
 
         <View style={styles.statusRow}>
@@ -227,23 +227,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     gap: 10,
   },
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
   },
   pillIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
   },
