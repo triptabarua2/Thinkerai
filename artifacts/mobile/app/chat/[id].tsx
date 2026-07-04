@@ -1616,7 +1616,6 @@ export default function ChatScreen() {
             styles.composerWrap,
             {
               paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 8,
-              borderTopColor: colors.border,
             },
           ]}
         >
@@ -1822,15 +1821,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   composerWrap: {
-    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 6,
-    paddingTop: 8,
-    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingHorizontal: 0,
   },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    paddingHorizontal: 14,
   },
   versionPill: {
     flexDirection: "row",

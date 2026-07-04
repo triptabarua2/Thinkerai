@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -150,6 +151,17 @@ export function ChatInput({
   );
 }
 
+const floatShadow = Platform.select({
+  web: { boxShadow: "0 6px 24px rgba(0,0,0,0.13)" },
+  default: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.13,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
@@ -160,6 +172,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 10,
     gap: 6,
+    ...(floatShadow as object),
   },
   iconBtn: {
     width: 40,
