@@ -6,6 +6,8 @@ import { fetch } from "expo/fetch";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  AppState,
+  type AppStateStatus,
   FlatList,
   Modal,
   Platform,
@@ -26,6 +28,7 @@ import { ChatInput } from "@/components/ChatInput";
 import { ClarificationCard, type ClarifyData } from "@/components/ClarificationCard";
 import { CreditConfirmModal } from "@/components/CreditConfirmModal";
 import { DecisionMemoryBanner } from "@/components/DecisionMemoryBanner";
+import { ResumeFromBackgroundBanner } from "@/components/ResumeFromBackgroundBanner";
 import { FixCounterBar, MEDIUM_LIMIT, REBUILD_LIMIT } from "@/components/FixCounterBar";
 import { FixLimitModal } from "@/components/FixLimitModal";
 import { ImageOutputCard } from "@/components/ImageOutputCard";
@@ -196,6 +199,23 @@ export default function ChatScreen() {
 
   // Offline retry state
   const [offlineRetrying, setOfflineRetrying] = useState(false);
+
+  // Background job tracking for "Resume from background" banner
+  const activeJobIdRef = useRef<string | null>(null);
+  const [backgroundJobReady, setBackgroundJobReady] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+      // User returned to foreground while a pipeline was running in background
+      if (prev !== "active" && nextState === "active" && activeJobIdRef.current) {
+        setBackgroundJobReady(true);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const initializedRef = useRef(false);
   const autoSentRef = useRef(false);
@@ -633,6 +653,7 @@ export default function ChatScreen() {
       });
       if (!jobRes.ok) throw new Error(`Error: ${jobRes.status}`);
       const { jobId: jobId1 } = await jobRes.json() as { jobId: string };
+      activeJobIdRef.current = jobId1;
       const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId1}`, {
         headers: { Accept: "text/event-stream" },
       });
@@ -642,6 +663,8 @@ export default function ChatScreen() {
       setShowTyping(false);
       setPipelineActive(false);
     } finally {
+      activeJobIdRef.current = null;
+      setBackgroundJobReady(false);
       setIsStreaming(false);
       setShowTyping(false);
       refreshCredits();
@@ -688,6 +711,7 @@ export default function ChatScreen() {
       });
       if (!jobRes2.ok) throw new Error(`Error: ${jobRes2.status}`);
       const { jobId: jobId2 } = await jobRes2.json() as { jobId: string };
+      activeJobIdRef.current = jobId2;
       const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId2}`, {
         headers: { Accept: "text/event-stream" },
       });
@@ -697,6 +721,8 @@ export default function ChatScreen() {
       setShowTyping(false);
       setPipelineActive(false);
     } finally {
+      activeJobIdRef.current = null;
+      setBackgroundJobReady(false);
       setIsStreaming(false);
       setShowTyping(false);
       refreshCredits();
@@ -769,6 +795,7 @@ export default function ChatScreen() {
       });
       if (!jobRes3.ok) throw new Error(`Error: ${jobRes3.status}`);
       const { jobId: jobId3 } = await jobRes3.json() as { jobId: string };
+      activeJobIdRef.current = jobId3;
       const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId3}`, {
         headers: { Accept: "text/event-stream" },
       });
@@ -791,8 +818,83 @@ export default function ChatScreen() {
         setMessages((prev) => [...prev, errMsg]);
       }
     } finally {
+      activeJobIdRef.current = null;
+      setBackgroundJobReady(false);
       setIsStreaming(false);
       setShowTyping(false);
+      refreshCredits();
+    }
+  }
+
+  async function streamReconnect(jobId: string) {
+    setBackgroundJobReady(false);
+    if (isStreaming) return;
+    setIsStreaming(true);
+    setPipelineActive(true);
+    setShowTyping(false);
+    const assistantId = genId();
+    let assistantAdded = false;
+    let fullContent = "";
+    try {
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId}`, {
+        headers: { Accept: "text/event-stream" },
+      });
+      if (!response.ok) return;
+      const reader = response.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6);
+          if (raw === "[DONE]") continue;
+          try {
+            const event = JSON.parse(raw) as Record<string, unknown>;
+            switch (event.type) {
+              case "agent_start":
+                updateStepStatus(event.agent as string, "running", event.label as string);
+                setPipelineLabel(event.label as string);
+                break;
+              case "agent_done":
+                updateStepStatus(event.agent as string, "done");
+                break;
+              case "content":
+                fullContent += event.content as string;
+                if (!assistantAdded) {
+                  assistantAdded = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant" as const, content: fullContent, timestamp: Date.now() },
+                  ]);
+                } else {
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m))
+                  );
+                }
+                break;
+              case "done":
+                setPipelineActive(false);
+                setPipelineLabel("");
+                break;
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      setPipelineActive(false);
+    } finally {
+      activeJobIdRef.current = null;
+      setBackgroundJobReady(false);
+      setIsStreaming(false);
+      setShowTyping(false);
+      setPipelineActive(false);
       refreshCredits();
     }
   }
@@ -1326,6 +1428,13 @@ export default function ChatScreen() {
           updateCellsBatchingPeriod={30}
           ListHeaderComponent={
             <>
+              {backgroundJobReady && activeJobIdRef.current && (
+                <ResumeFromBackgroundBanner
+                  onReconnect={() => streamReconnect(activeJobIdRef.current!)}
+                  onDismiss={() => setBackgroundJobReady(false)}
+                  colors={colors as unknown as Parameters<typeof ResumeFromBackgroundBanner>[0]["colors"]}
+                />
+              )}
               {showTyping && !pipelineActive && <TypingIndicator />}
               {pipelineActive && (
                 <PipelineProgress steps={pipelineSteps} visible={pipelineActive} />
