@@ -21,7 +21,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BlurView } from "expo-blur";
-import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sidebar } from "@/components/Sidebar";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -74,6 +73,12 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const agent = AGENTS[agentType];
     const id = await createConversation(`${agent.name} Session`, agentType);
+    router.push(`/chat/${id}` as any);
+  }
+
+  async function handleNewChat() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const id = await createConversation("New Chat");
     router.push(`/chat/${id}` as any);
   }
 
@@ -225,9 +230,14 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <NotificationBell
-          iconBtnStyle={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-        />
+        <TouchableOpacity
+          style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleNewChat}
+          activeOpacity={0.7}
+          hitSlop={8}
+        >
+          <Feather name="edit" size={20} color={colors.text} />
+        </TouchableOpacity>
       </BlurView>
 
       <View style={[styles.content, { flex: 1, paddingTop: HEADER_H + 16 }]}>

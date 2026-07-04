@@ -22,13 +22,13 @@ const POLL_INTERVAL_MS = 30_000;
 
 function statusLabel(job: JobSummary): string {
   if (job.status === "awaiting_approval") {
-    if (job.approvalType === "blueprint") return "Blueprint অপেক্ষমাণ — Approve করুন";
-    if (job.approvalType === "output") return "Output অপেক্ষমাণ — Approve করুন";
-    return "Approval প্রয়োজন";
+    if (job.approvalType === "blueprint") return "Blueprint pending — Approve";
+    if (job.approvalType === "output") return "Output pending — Approve";
+    return "Approval required";
   }
-  if (job.status === "running") return "চলছে…";
-  if (job.status === "complete") return "সম্পন্ন হয়েছে";
-  if (job.status === "failed") return "সমস্যা হয়েছে";
+  if (job.status === "running") return "Running…";
+  if (job.status === "complete") return "Completed";
+  if (job.status === "failed") return "Failed";
   return "Unknown";
 }
 
@@ -50,10 +50,10 @@ function statusIcon(job: JobSummary): string {
 
 function timeAgo(ts: number): string {
   const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return "এইমাত্র";
-  if (diff < 3600) return `${Math.floor(diff / 60)} মিনিট আগে`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} ঘণ্টা আগে`;
-  return `${Math.floor(diff / 86400)} দিন আগে`;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 interface Props {
@@ -128,10 +128,10 @@ export function NotificationBell({ iconBtnStyle }: Props) {
     <View style={styles.emptyWrap}>
       <Feather name="bell-off" size={38} color={colors.textTertiary} />
       <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-        কোনো সাম্প্রতিক activity নেই
+        No recent activity
       </Text>
       <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
-        Background job শুরু হলে এখানে দেখাবে
+        Background jobs will appear here
       </Text>
     </View>
   );
@@ -235,7 +235,7 @@ export function NotificationBell({ iconBtnStyle }: Props) {
 
           {loading && jobs.length === 0 ? (
             <View style={styles.emptyWrap}>
-              <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>লোড হচ্ছে…</Text>
+              <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>Loading…</Text>
             </View>
           ) : (
             <FlatList
