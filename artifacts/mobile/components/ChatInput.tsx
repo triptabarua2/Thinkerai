@@ -6,7 +6,6 @@ import {
   Animated,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -19,29 +18,11 @@ import { setVoiceCallback } from "@/lib/voiceStore";
 const INPUT_MIN_H = 52;
 const INPUT_MAX_H = 180;
 
-const CREDIT_COSTS: Record<string, number> = {
-  low: 1,
-  medium: 9,
-  high: 66,
-  consensus: 99,
-};
-
-const LEVEL_LABELS: Record<string, string> = {
-  low: "■ Low",
-  medium: "■■ Mid",
-  high: "■■■ High",
-  consensus: "■■■■ Consensus",
-};
-
-type ThinkingLevel = "low" | "medium" | "high" | "consensus";
-const LEVEL_ORDER: ThinkingLevel[] = ["low", "medium", "high", "consensus"];
-
 interface Props {
-  onSend: (text: string, level: ThinkingLevel) => void;
+  onSend: (text: string) => void;
   onAttach?: () => void;
   disabled?: boolean;
   placeholder?: string;
-  creditBalance?: number;
   agentType?: AgentType;
 }
 
@@ -50,12 +31,10 @@ export function ChatInput({
   onAttach,
   disabled = false,
   placeholder,
-  creditBalance = 50,
   agentType,
 }: Props) {
   const colors = useColors();
   const [text, setText] = useState("");
-  const [level, setLevel] = useState<ThinkingLevel>("medium");
   const [inputH, setInputH] = useState(INPUT_MIN_H);
   const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const inputRef = useRef<TextInput>(null);
@@ -66,8 +45,6 @@ export function ChatInput({
     placeholder ?? agentDef?.placeholder ?? "Message Thinker AI...";
 
   const canSend = text.trim().length > 0 && !disabled;
-  const estimatedCredits = CREDIT_COSTS[level];
-  const canAfford = creditBalance >= estimatedCredits;
 
   useEffect(() => {
     Animated.spring(heightAnim, {
@@ -78,12 +55,6 @@ export function ChatInput({
       mass: 0.7,
     }).start();
   }, [inputH]);
-
-  function cycleLevel() {
-    Haptics.selectionAsync();
-    const idx = LEVEL_ORDER.indexOf(level);
-    setLevel(LEVEL_ORDER[(idx + 1) % LEVEL_ORDER.length]);
-  }
 
   function handleContentSizeChange(e: any) {
     if (!text) return;
@@ -99,7 +70,7 @@ export function ChatInput({
     setInputH(INPUT_MIN_H);
     heightAnim.setValue(INPUT_MIN_H);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onSend(content, level);
+    onSend(content);
     inputRef.current?.focus();
 
     Animated.sequence([
@@ -109,158 +80,77 @@ export function ChatInput({
   }
 
   return (
-    <View style={styles.wrapper}>
-      {text.trim().length > 0 && (
-        <View style={[styles.chipRow]}>
-          <View
-            style={[
-              styles.creditChip,
-              {
-                backgroundColor: canAfford ? colors.primary + "15" : colors.destructive + "15",
-                borderColor: canAfford ? colors.primary + "40" : colors.destructive + "40",
-              },
-            ]}
-          >
-            <Feather
-              name="zap"
-              size={10}
-              color={canAfford ? colors.primary : colors.destructive}
-            />
-            <Text
-              style={[
-                styles.chipText,
-                { color: canAfford ? colors.primary : colors.destructive },
-              ]}
-            >
-              ~{estimatedCredits} credits
-            </Text>
-          </View>
-          <View style={[styles.balanceChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
-              Balance: {creditBalance}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-        ]}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.iconBtn}
+        onPress={onAttach}
+        activeOpacity={0.6}
+        hitSlop={8}
       >
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={onAttach}
-          activeOpacity={0.6}
-          hitSlop={8}
-        >
-          <Feather name="paperclip" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <Feather name="paperclip" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setVoiceCallback((transcribed) => {
-              if (transcribed.trim()) setText(transcribed.trim());
-            });
-            router.push("/voice" as any);
-          }}
-          activeOpacity={0.6}
-          hitSlop={8}
-        >
-          <Feather name="mic" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.iconBtn}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setVoiceCallback((transcribed) => {
+            if (transcribed.trim()) setText(transcribed.trim());
+          });
+          router.push("/voice" as any);
+        }}
+        activeOpacity={0.6}
+        hitSlop={8}
+      >
+        <Feather name="mic" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
 
-        <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
-            value={text}
-            onChangeText={setText}
-            placeholder={resolvedPlaceholder}
-            placeholderTextColor={colors.textTertiary}
-            multiline
-            maxLength={4000}
-            blurOnSubmit={false}
-            scrollEnabled={inputH >= INPUT_MAX_H}
-            onContentSizeChange={handleContentSizeChange}
-            onSubmitEditing={handleSend}
-          />
-        </Animated.View>
+      <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
+        <TextInput
+          ref={inputRef}
+          style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
+          value={text}
+          onChangeText={setText}
+          placeholder={resolvedPlaceholder}
+          placeholderTextColor={colors.textTertiary}
+          multiline
+          maxLength={4000}
+          blurOnSubmit={false}
+          scrollEnabled={inputH >= INPUT_MAX_H}
+          onContentSizeChange={handleContentSizeChange}
+          onSubmitEditing={handleSend}
+        />
+      </Animated.View>
 
-        <TouchableOpacity
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Pressable
           style={[
-            styles.levelChip,
-            { backgroundColor: colors.primary + "18", borderColor: colors.primary + "35" },
+            styles.sendBtn,
+            { backgroundColor: canSend ? colors.primary : colors.border },
           ]}
-          onPress={cycleLevel}
-          activeOpacity={0.7}
-          hitSlop={4}
+          onPress={handleSend}
+          disabled={!canSend}
         >
-          <Text style={[styles.levelText, { color: colors.primary }]}>
-            {LEVEL_LABELS[level]}
-          </Text>
-        </TouchableOpacity>
-
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          <Pressable
-            style={[
-              styles.sendBtn,
-              { backgroundColor: canSend ? colors.primary : colors.border },
-            ]}
-            onPress={handleSend}
-            disabled={!canSend}
-          >
-            <Feather
-              name="arrow-up"
-              size={18}
-              color={canSend ? "#F9FAFB" : colors.textTertiary}
-            />
-          </Pressable>
-        </Animated.View>
-      </View>
+          <Feather
+            name="arrow-up"
+            size={18}
+            color={canSend ? "#F9FAFB" : colors.textTertiary}
+          />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    gap: 6,
-  },
-  chipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 18,
-  },
-  creditChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  balanceChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  balanceText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
   container: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -287,18 +177,6 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 0,
     paddingHorizontal: 4,
-  },
-  levelChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 4,
-  },
-  levelText: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.3,
   },
   sendBtn: {
     width: 36,
