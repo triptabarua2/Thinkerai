@@ -9,6 +9,7 @@ import downloadRouter from "./download";
 import feedbackRouter from "./feedback";
 import creditsRouter from "./credits";
 import transcribeRouter from "./transcribe";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(downloadRouter);
 router.use(feedbackRouter);
 router.use("/credits", creditsRouter);
 router.use(transcribeRouter);
+router.use("/notifications", notificationsRouter);
 
 export default router;

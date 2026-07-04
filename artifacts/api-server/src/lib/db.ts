@@ -317,6 +317,67 @@ export async function getDecisionMemory(userId: string): Promise<Array<{ rule: s
   return result.rows as Array<{ rule: string; applies_to: string }>;
 }
 
+// ── Push token management ─────────────────────────────────────────────────────
+
+/**
+ * Ensures the push_tokens table exists (idempotent).
+ * Called once at server startup. Safe to call repeatedly.
+ */
+export async function ensurePushTokensTable(): Promise<void> {
+  const pool = getPool();
+  if (!pool) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id         SERIAL PRIMARY KEY,
+      user_id    TEXT    NOT NULL DEFAULT 'default',
+      token      TEXT    NOT NULL,
+      platform   TEXT    NOT NULL DEFAULT 'unknown',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, token)
+    )
+  `);
+}
+
+/** Register or refresh a push token for a user. */
+export async function upsertPushToken(data: {
+  userId: string;
+  token: string;
+  platform?: string;
+}): Promise<void> {
+  const pool = getPool();
+  if (!pool) return;
+  await pool.query(
+    `INSERT INTO push_tokens (user_id, token, platform)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (user_id, token) DO UPDATE SET platform = EXCLUDED.platform`,
+    [data.userId, data.token, data.platform ?? "unknown"]
+  );
+}
+
+/** Remove a push token (e.g. on logout). */
+export async function removePushToken(data: {
+  userId: string;
+  token: string;
+}): Promise<void> {
+  const pool = getPool();
+  if (!pool) return;
+  await pool.query(
+    `DELETE FROM push_tokens WHERE user_id = $1 AND token = $2`,
+    [data.userId, data.token]
+  );
+}
+
+/** Return all active push tokens for a user. */
+export async function getPushTokensForUser(userId: string): Promise<string[]> {
+  const pool = getPool();
+  if (!pool) return [];
+  const result = await pool.query(
+    `SELECT token FROM push_tokens WHERE user_id = $1`,
+    [userId]
+  );
+  return (result.rows as { token: string }[]).map((r) => r.token);
+}
+
 export async function updateConversationCounts(data: {
   id: string;
   mediumFixCount?: number;

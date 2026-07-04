@@ -20,6 +20,7 @@ import { SplashAnimation } from "@/components/SplashAnimation";
 import { AppProvider } from "@/context/AppContext";
 import { WorkflowProvider } from "@/context/WorkflowContext";
 import colors from "@/constants/colors";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,6 +42,8 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  usePushNotifications("default");
+
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,

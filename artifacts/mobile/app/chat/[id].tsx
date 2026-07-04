@@ -616,9 +616,9 @@ export default function ChatScreen() {
         { role: "user" as const, content: text },
       ];
 
-      const response = await fetch(`${baseUrl}api/pipeline`, {
+      const jobRes = await fetch(`${baseUrl}api/pipeline`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: chatHistory,
           planTier: PLAN_TIER,
@@ -631,8 +631,12 @@ export default function ChatScreen() {
           ...extraOptions,
         }),
       });
-
-      if (!response.ok) throw new Error(`Error: ${response.status}`);
+      if (!jobRes.ok) throw new Error(`Error: ${jobRes.status}`);
+      const { jobId: jobId1 } = await jobRes.json() as { jobId: string };
+      const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId1}`, {
+        headers: { Accept: "text/event-stream" },
+      });
+      if (!response.ok) throw new Error(`Stream error: ${response.status}`);
       await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
     } catch {
       setShowTyping(false);
@@ -666,9 +670,9 @@ export default function ChatScreen() {
         ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: text },
       ];
-      const response = await fetch(`${baseUrl}api/pipeline`, {
+      const jobRes2 = await fetch(`${baseUrl}api/pipeline`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: chatHistory,
           planTier: PLAN_TIER,
@@ -682,7 +686,12 @@ export default function ChatScreen() {
           currentVersion: currentVersion > 0 ? currentVersion : undefined,
         }),
       });
-      if (!response.ok) throw new Error(`Error: ${response.status}`);
+      if (!jobRes2.ok) throw new Error(`Error: ${jobRes2.status}`);
+      const { jobId: jobId2 } = await jobRes2.json() as { jobId: string };
+      const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId2}`, {
+        headers: { Accept: "text/event-stream" },
+      });
+      if (!response.ok) throw new Error(`Stream error: ${response.status}`);
       await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
     } catch {
       setShowTyping(false);
@@ -742,9 +751,9 @@ export default function ChatScreen() {
         { role: "user" as const, content: text },
       ];
 
-      const response = await fetch(`${baseUrl}api/pipeline`, {
+      const jobRes3 = await fetch(`${baseUrl}api/pipeline`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: chatHistory,
           planTier: PLAN_TIER,
@@ -758,8 +767,12 @@ export default function ChatScreen() {
           workflowSystemPrompt: activeWorkflowPrompt,
         }),
       });
-
-      if (!response.ok) throw new Error(`Error: ${response.status}`);
+      if (!jobRes3.ok) throw new Error(`Error: ${jobRes3.status}`);
+      const { jobId: jobId3 } = await jobRes3.json() as { jobId: string };
+      const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId3}`, {
+        headers: { Accept: "text/event-stream" },
+      });
+      if (!response.ok) throw new Error(`Stream error: ${response.status}`);
       await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
 
       // Successfully sent — remove from pending queue

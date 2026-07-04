@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { ensurePushTokensTable } from "./lib/db.js";
 
 // Catch promise rejections that escape any try/catch block.
 // Node.js v15+ crashes the process by default — this keeps the server alive
@@ -28,6 +29,11 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Ensure push_tokens table exists (idempotent, non-blocking)
+ensurePushTokensTable().catch((err) => {
+  logger.warn({ err }, "push_tokens table setup failed — push notifications disabled");
+});
 
 app.listen(port, (err) => {
   if (err) {
