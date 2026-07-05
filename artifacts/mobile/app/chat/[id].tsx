@@ -942,6 +942,92 @@ export default function ChatScreen() {
                 setPipelineActive(false);
                 break;
               }
+              case "final_output": {
+                const finalSummary = event.summary as string;
+                const finalType = event.artifactType as string;
+                const finalCredits = event.creditsUsed as number;
+                const finalAgents = event.agentCount as number;
+                const finalVersion = event.version as number;
+                const chunk =
+                  `\n\n---\n✅ **Build Complete** — Version ${finalVersion}\n\n` +
+                  `${finalSummary}\n\n` +
+                  `*${finalAgents} agents · ${finalCredits} credits · Type: ${finalType}*\n`;
+                fullContent += chunk;
+                if (!assistantAdded) {
+                  assistantAdded = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant" as const, content: fullContent, timestamp: Date.now() },
+                  ]);
+                } else {
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m))
+                  );
+                }
+                lastOutputContent.current = fullContent;
+                const durationSecs = Math.round((Date.now() - pipelineStartTimeRef.current) / 1000);
+                setFinalOutput({
+                  projectName: finalType,
+                  summary: finalSummary,
+                  creditsUsed: finalCredits,
+                  agentCount: finalAgents,
+                  version: finalVersion,
+                  duration: durationSecs > 0 ? `${durationSecs}s` : "< 1s",
+                  builderContent: event.builderContent as string | undefined,
+                });
+                setPipelineActive(false);
+                setPipelineLabel("");
+                break;
+              }
+              case "pipeline_halt": {
+                const haltReason = event.reason as string;
+                if (!assistantAdded) {
+                  fullContent = `⚠️ **Pipeline paused**: ${haltReason}\n\nYour work so far has been saved.`;
+                  assistantAdded = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant" as const, content: fullContent, timestamp: Date.now() },
+                  ]);
+                }
+                setPipelineActive(false);
+                break;
+              }
+              case "image_approval_needed": {
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+                setImageApproval({
+                  visible: true,
+                  imageUrl: event.imageUrl as string,
+                  description: event.description as string,
+                  imagePrompt: event.imagePrompt as string,
+                  stepId: event.stepId as string,
+                  attemptNumber: event.attemptNumber as number,
+                  maxAttempts: event.maxAttempts as number,
+                  pendingMessage: lastUserMsg,
+                });
+                setPipelineActive(false);
+                break;
+              }
+              case "credit_confirm": {
+                // Informational only — no action needed on reconnect.
+                break;
+              }
+              case "error": {
+                const errChunk = `⚠️ **Error**: ${event.userMessage as string}`;
+                if (!assistantAdded) {
+                  assistantAdded = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant" as const, content: errChunk, timestamp: Date.now() },
+                  ]);
+                } else {
+                  fullContent += `\n\n${errChunk}`;
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m))
+                  );
+                }
+                setPipelineActive(false);
+                break;
+              }
               case "done":
                 setPipelineActive(false);
                 setPipelineLabel("");

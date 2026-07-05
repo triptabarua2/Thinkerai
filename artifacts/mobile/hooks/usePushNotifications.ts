@@ -41,9 +41,18 @@ function handleNotificationResponse(response: {
 
   const screen = data.screen as string | undefined;
   const conversationId = data.conversationId as string | undefined;
+  const jobId = data.jobId as string | undefined;
   if (screen === "chat" && conversationId) {
-    // Navigate to the conversation that needs approval
-    router.push({ pathname: "/chat/[id]", params: { id: conversationId } });
+    // Navigate to the conversation and reconnect to the live job stream
+    // (job may have kept progressing/completed while the app was backgrounded).
+    if (jobId) {
+      router.push({
+        pathname: "/chat/[id]",
+        params: { id: conversationId, reconnectJobId: jobId },
+      });
+    } else {
+      router.push({ pathname: "/chat/[id]", params: { id: conversationId } });
+    }
   }
 }
 
@@ -70,6 +79,17 @@ export function usePushNotifications(userId = "default"): void {
             shouldShowList: true,
           }),
         });
+
+        // Android requires an explicit notification channel or importance/sound
+        // may not work correctly (silent/low-priority notifications).
+        if (Platform.OS === "android") {
+          await Notifications.setNotificationChannelAsync("default", {
+            name: "default",
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            sound: "default",
+          });
+        }
 
         // Request permission
         const { status: existingStatus } =
