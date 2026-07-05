@@ -34,12 +34,13 @@ async function registerTokenWithBackend(
 }
 
 function handleNotificationResponse(response: {
-  notification: { request: { content: { data?: Record<string, string> } } };
+  notification: { request: { content: { data?: Record<string, unknown> } } };
 }): void {
   const data = response.notification.request.content.data;
   if (!data) return;
 
-  const { screen, conversationId } = data;
+  const screen = data.screen as string | undefined;
+  const conversationId = data.conversationId as string | undefined;
   if (screen === "chat" && conversationId) {
     // Navigate to the conversation that needs approval
     router.push({ pathname: "/chat/[id]", params: { id: conversationId } });

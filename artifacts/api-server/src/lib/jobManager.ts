@@ -68,7 +68,7 @@ export function emitToJob(jobId: string, event: PipelineEvent): void {
   if (event.type === "blueprint_ready") {
     job.status = "awaiting_approval";
     job.approvalType = "blueprint";
-  } else if (event.type === "approval_request") {
+  } else if (event.type === "approval_needed") {
     job.status = "awaiting_approval";
     job.approvalType = "output";
   } else if (event.type === "done") {

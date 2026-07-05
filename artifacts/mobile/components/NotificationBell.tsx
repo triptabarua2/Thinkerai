@@ -119,8 +119,13 @@ export function NotificationBell({ iconBtnStyle }: Props) {
 
   function handleJobPress(job: JobSummary) {
     closeSheet();
+    const needsReconnect = job.status === "running" || job.status === "awaiting_approval";
     setTimeout(() => {
-      router.push(`/chat/${job.conversationId}` as any);
+      if (needsReconnect) {
+        router.push(`/chat/${job.conversationId}?reconnectJobId=${job.jobId}` as any);
+      } else {
+        router.push(`/chat/${job.conversationId}` as any);
+      }
     }, 240);
   }
 

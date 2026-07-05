@@ -90,7 +90,7 @@ function buildInitialSteps(): AgentStep[] {
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id, q, workflowPrompt, workflowName } = useLocalSearchParams<{ id: string; q?: string; workflowPrompt?: string; workflowName?: string }>();
+  const { id, q, workflowPrompt, workflowName, reconnectJobId } = useLocalSearchParams<{ id: string; q?: string; workflowPrompt?: string; workflowName?: string; reconnectJobId?: string }>();
   const activeWorkflowPrompt = workflowPrompt ? decodeURIComponent(workflowPrompt) : undefined;
   const activeWorkflowName = workflowName ? decodeURIComponent(workflowName) : undefined;
   const { getConversation, updateConversation, createConversation } = useApp();
@@ -278,6 +278,15 @@ export default function ChatScreen() {
       setTimeout(() => handleSendRef.current(decoded), 150);
     }
   }, [q]);
+
+  const reconnectRequestedRef = useRef(false);
+  useEffect(() => {
+    if (reconnectJobId && !reconnectRequestedRef.current) {
+      reconnectRequestedRef.current = true;
+      activeJobIdRef.current = reconnectJobId;
+      setTimeout(() => streamReconnect(reconnectJobId), 150);
+    }
+  }, [reconnectJobId]);
 
   function updateStepStatus(agentId: string, status: AgentStep["status"], label?: string) {
     setPipelineSteps((prev) =>
@@ -879,6 +888,60 @@ export default function ChatScreen() {
                   );
                 }
                 break;
+              case "clarification_needed": {
+                const questions = event.questions as ClarifyData["questions"];
+                const intentType = (event.intent as string) ?? "task";
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+                setClarifyState({
+                  status: "needed",
+                  data: {
+                    needs_clarification: true,
+                    confidence: 60,
+                    intent: `${intentType} request`,
+                    task_type: intentType,
+                    reason: "Need more information to proceed",
+                    questions,
+                  },
+                  pendingMessage: lastUserMsg,
+                });
+                setPipelineActive(false);
+                break;
+              }
+              case "signature_question": {
+                const question = event.question as string;
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+                setClarifyState({ status: "signature", question, pendingMessage: lastUserMsg });
+                setPipelineActive(false);
+                break;
+              }
+              case "blueprint_ready": {
+                const steps = event.steps as BlueprintStep[];
+                const techStack = (event.techStack as string) ?? "";
+                const complexity = (event.estimatedComplexity as string) ?? "Medium";
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+                setClarifyState({
+                  status: "blueprint",
+                  steps,
+                  techStack,
+                  complexity,
+                  pendingMessage: lastUserMsg,
+                });
+                setPipelineActive(false);
+                break;
+              }
+              case "approval_needed": {
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+                setClarifyState({
+                  status: "approval",
+                  content: event.content as string,
+                  artifactType: event.artifactType as string,
+                  version: event.version as number,
+                  agentCount: event.agentCount as number,
+                  pendingMessage: lastUserMsg,
+                });
+                setPipelineActive(false);
+                break;
+              }
               case "done":
                 setPipelineActive(false);
                 setPipelineLabel("");

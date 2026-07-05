@@ -96,7 +96,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     if (event.type === "blueprint_ready" && !blueprintNotified) {
       blueprintNotified = true;
       notifyBlueprintReady(userId, convId, jobId).catch(() => {});
-    } else if (event.type === "approval_request" && !outputNotified) {
+    } else if (event.type === "approval_needed" && !outputNotified) {
       outputNotified = true;
       notifyOutputReady(userId, convId, jobId).catch(() => {});
     } else if (event.type === "done" && event.status === "complete") {
