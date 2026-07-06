@@ -13,7 +13,7 @@ export interface Job {
   id: string;
   conversationId: string;
   userId: string;
-  status: "running" | "awaiting_approval" | "complete" | "failed";
+  status: "running" | "awaiting_approval" | "complete" | "failed" | "cancelled";
   /** Approval type if the pipeline is paused waiting for user input */
   approvalType: "blueprint" | "output" | null;
   /** All serialised SSE lines, buffered for replay */
@@ -21,6 +21,8 @@ export interface Job {
   /** Active SSE subscribers (res.write callbacks) */
   listeners: Set<(line: string) => void>;
   createdAt: number;
+  /** Set when the user requests the job be stopped; checked by thinkerCore between stages */
+  cancelled: boolean;
 }
 
 const jobs = new Map<string, Job>();
@@ -37,6 +39,7 @@ export function createJob(conversationId: string, userId = "default"): string {
     eventLines: [],
     listeners: new Set(),
     createdAt: Date.now(),
+    cancelled: false,
   });
 
   // Auto-expire
@@ -72,7 +75,8 @@ export function emitToJob(jobId: string, event: PipelineEvent): void {
     job.status = "awaiting_approval";
     job.approvalType = "output";
   } else if (event.type === "done") {
-    job.status = event.status === "failed" ? "failed" : "complete";
+    job.status =
+      event.status === "failed" ? "failed" : event.status === "cancelled" ? "cancelled" : "complete";
     job.approvalType = null;
   }
 }
@@ -108,6 +112,20 @@ export function markJobComplete(jobId: string, failed = false): void {
     job.status = failed ? "failed" : "complete";
     job.approvalType = null;
   }
+}
+
+/** Request that a running job be stopped. Checked by thinkerCore between pipeline stages. */
+export function cancelJob(jobId: string): boolean {
+  const job = jobs.get(jobId);
+  if (!job) return false;
+  job.cancelled = true;
+  job.status = "cancelled";
+  job.approvalType = null;
+  return true;
+}
+
+export function isJobCancelled(jobId: string): boolean {
+  return jobs.get(jobId)?.cancelled === true;
 }
 
 export interface JobSummary {

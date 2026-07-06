@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { runThinkerCore } from "../core/thinkerCore.js";
 import { saveConversation, saveMessage, saveDecisionMemory } from "../lib/db.js";
-import { createJob, emitToJob, subscribeToJob, markJobComplete, getJob } from "../lib/jobManager.js";
+import { createJob, emitToJob, subscribeToJob, markJobComplete, getJob, cancelJob } from "../lib/jobManager.js";
 import { notifyBlueprintReady, notifyOutputReady, notifyPipelineComplete } from "../lib/pushNotifications.js";
 import type { PipelineEvent, PlanTier, ThinkingLevel, DecisionMemoryEntry, VersionSnapshot } from "../types/pipeline.js";
 
@@ -129,13 +129,20 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       currentVersion,
       conversationId: convId,
       workflowSystemPrompt,
+      jobId,
     });
-    markJobComplete(jobId, false);
+    // If the job was cancelled mid-run, thinkerCore already emitted the
+    // "cancelled" done event and set the job status — don't overwrite it.
+    if (getJob(jobId)?.status !== "cancelled") {
+      markJobComplete(jobId, false);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     req.log?.error({ err: msg }, "Pipeline error");
-    emit({ type: "done", status: "failed", error: msg });
-    markJobComplete(jobId, true);
+    if (getJob(jobId)?.status !== "cancelled") {
+      emit({ type: "done", status: "failed", error: msg });
+      markJobComplete(jobId, true);
+    }
   }
 });
 
@@ -190,11 +197,36 @@ router.get("/stream/:jobId", (req: Request, res: Response): void => {
   });
 
   // If job is already done, end the response after replay
-  if (job.status === "complete" || job.status === "failed") {
+  if (job.status === "complete" || job.status === "failed" || job.status === "cancelled") {
     clearInterval(ping);
     unsub();
     res.end();
   }
+});
+
+/**
+ * POST /api/pipeline/:jobId/cancel
+ *
+ * Stops an in-progress pipeline job. thinkerCore checks the cancellation
+ * flag between stages and halts as soon as it notices, emitting a final
+ * "done" event with status "cancelled" so connected clients can clean up.
+ */
+router.post("/:jobId/cancel", (req: Request, res: Response): void => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+  if (!job) {
+    res.status(404).json({ error: "Job not found or expired" });
+    return;
+  }
+
+  const wasRunning = job.status === "running" || job.status === "awaiting_approval";
+  cancelJob(jobId);
+
+  if (wasRunning) {
+    emitToJob(jobId, { type: "done", status: "cancelled" });
+  }
+
+  res.json({ jobId, status: "cancelled" });
 });
 
 /**

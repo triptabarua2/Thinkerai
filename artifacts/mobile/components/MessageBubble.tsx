@@ -206,6 +206,9 @@ export const MessageBubble = React.memo(function MessageBubble({ message, onRelo
           />
         </View>
         <View style={[styles.actionRow, rtl && { flexDirection: "row-reverse" }]}>
+          {message.edited && (
+            <Text style={[styles.editedLabel, { color: colors.textTertiary }]}>Edited</Text>
+          )}
           <ActionBtn
             icon={copied ? "check" : "copy"}
             label={copied ? "Copied" : "Copy"}
@@ -298,7 +301,8 @@ export const MessageBubble = React.memo(function MessageBubble({ message, onRelo
 }, (prev, next) =>
   prev.message.id === next.message.id &&
   prev.message.content === next.message.content &&
-  prev.message.role === next.message.role
+  prev.message.role === next.message.role &&
+  prev.message.edited === next.message.edited
 );
 
 function ActionBtn({
@@ -367,6 +371,11 @@ const styles = StyleSheet.create({
     gap: 2,
     marginTop: 5,
     marginLeft: 2,
+  },
+  editedLabel: {
+    fontSize: 11,
+    fontStyle: "italic",
+    marginRight: 4,
   },
   actionBtn: {
     padding: 5,

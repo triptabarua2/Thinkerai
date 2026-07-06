@@ -28,6 +28,8 @@ interface Props {
   agentType?: AgentType;
   editingText?: string | null;
   onCancelEdit?: () => void;
+  isStreaming?: boolean;
+  onStop?: () => void;
 }
 
 export function ChatInput({
@@ -38,6 +40,8 @@ export function ChatInput({
   agentType,
   editingText,
   onCancelEdit,
+  isStreaming = false,
+  onStop,
 }: Props) {
   const colors = useColors();
   const [text, setText] = useState("");
@@ -172,20 +176,32 @@ export function ChatInput({
         </Animated.View>
 
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          <Pressable
-            style={[
-              styles.sendBtn,
-              { backgroundColor: canSend ? colors.primary : colors.border },
-            ]}
-            onPress={handleSend}
-            disabled={!canSend}
-          >
-            <Feather
-              name="arrow-up"
-              size={18}
-              color={canSend ? "#F9FAFB" : colors.textTertiary}
-            />
-          </Pressable>
+          {isStreaming ? (
+            <Pressable
+              style={[styles.sendBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onStop?.();
+              }}
+            >
+              <Feather name="square" size={16} color="#F9FAFB" />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[
+                styles.sendBtn,
+                { backgroundColor: canSend ? colors.primary : colors.border },
+              ]}
+              onPress={handleSend}
+              disabled={!canSend}
+            >
+              <Feather
+                name="arrow-up"
+                size={18}
+                color={canSend ? "#F9FAFB" : colors.textTertiary}
+              />
+            </Pressable>
+          )}
         </Animated.View>
       </View>
     </View>

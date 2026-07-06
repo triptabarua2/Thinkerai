@@ -246,4 +246,4 @@ export type PipelineEvent =
   | { type: "founder_mode_activated"; message: string }
   | { type: "analytics"; event: string; properties: Record<string, unknown> }
   | { type: "error"; code: string; userMessage: string; developerMessage: string }
-  | { type: "done"; status: "complete" | "failed" | "halted"; error?: string };
+  | { type: "done"; status: "complete" | "failed" | "halted" | "cancelled"; error?: string };

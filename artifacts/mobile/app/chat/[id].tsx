@@ -241,6 +241,9 @@ export default function ChatScreen() {
 
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const editHistoryOverrideRef = useRef<Message[] | null>(null);
+  const editedFlagRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const stoppedRef = useRef(false);
 
   const handleEditMessage = useCallback((msg: import("@/context/AppContext").Message) => {
     if (isStreaming) return;
@@ -250,6 +253,18 @@ export default function ChatScreen() {
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
     editHistoryOverrideRef.current = null;
+    editedFlagRef.current = false;
+  }, []);
+
+  const handleStopStreaming = useCallback(() => {
+    stoppedRef.current = true;
+    const jobId = activeJobIdRef.current;
+    if (jobId) {
+      const baseUrl = getBaseUrl();
+      fetch(`${baseUrl}api/pipeline/${jobId}/cancel`, { method: "POST" }).catch(() => {});
+    }
+    abortControllerRef.current?.abort();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, []);
 
   const handleReplyMessage = useCallback((_msg: import("@/context/AppContext").Message) => {
@@ -324,6 +339,7 @@ export default function ChatScreen() {
       const idx = messages.findIndex((m) => m.id === editingMessage.id);
       const truncated = idx !== -1 ? messages.slice(0, idx) : messages;
       editHistoryOverrideRef.current = truncated;
+      editedFlagRef.current = true;
       setMessages(truncated);
       setEditingMessage(null);
     }
@@ -776,11 +792,16 @@ export default function ChatScreen() {
       enqueuedAt: Date.now(),
     });
 
+    const wasEdited = editedFlagRef.current;
+    editedFlagRef.current = false;
+    stoppedRef.current = false;
+
     const userMsg: Message = {
       id: pendingId,
       role: "user",
       content: displayText ?? text,
       timestamp: Date.now(),
+      ...(wasEdited ? { edited: true } : {}),
     };
 
     // Avoid duplicating the user bubble when retrying a queued message
@@ -800,6 +821,9 @@ export default function ChatScreen() {
     pipelineStartTimeRef.current = Date.now();
 
     const activeAgent = agentType;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const baseUrl = getBaseUrl();
@@ -823,23 +847,28 @@ export default function ChatScreen() {
           conversationId: id,
           workflowSystemPrompt: activeWorkflowPrompt,
         }),
+        signal: controller.signal,
       });
       if (!jobRes3.ok) throw new Error(`Error: ${jobRes3.status}`);
       const { jobId: jobId3 } = await jobRes3.json() as { jobId: string };
       activeJobIdRef.current = jobId3;
       const response = await fetch(`${baseUrl}api/pipeline/stream/${jobId3}`, {
         headers: { Accept: "text/event-stream" },
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Stream error: ${response.status}`);
       await processSSEStream(response, text, activeAgent, currentMessages, userMsg);
 
       // Successfully sent — remove from pending queue
       await markSent(pendingId);
-    } catch {
+    } catch (err) {
       setShowTyping(false);
       setPipelineActive(false);
-      // Don't show error if this was a background retry — queue will retry again
-      if (!existingPendingId) {
+      if (stoppedRef.current || (err instanceof Error && err.name === "AbortError")) {
+        // User manually stopped the pipeline — not a connection failure.
+        await markSent(pendingId);
+      } else if (!existingPendingId) {
+        // Don't show error if this was a background retry — queue will retry again
         const errMsg: Message = {
           id: genId(),
           role: "assistant",
@@ -849,6 +878,8 @@ export default function ChatScreen() {
         setMessages((prev) => [...prev, errMsg]);
       }
     } finally {
+      abortControllerRef.current = null;
+      stoppedRef.current = false;
       activeJobIdRef.current = null;
       setBackgroundJobReady(false);
       setIsStreaming(false);
@@ -1827,6 +1858,8 @@ export default function ChatScreen() {
             placeholder={isClarifying ? "Answer the questions above first..." : undefined}
             editingText={editingMessage?.content ?? null}
             onCancelEdit={handleCancelEdit}
+            isStreaming={isStreaming}
+            onStop={handleStopStreaming}
           />
         </View>
       </KeyboardAvoidingView>

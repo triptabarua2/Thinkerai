@@ -12,6 +12,7 @@ import { runCriticAgent } from "../agents/criticAgent.js";
 import { runJudgeAgent, isHighRiskContent } from "../agents/judgeAgent.js";
 import { runConsensusAgent } from "../agents/consensusAgent.js";
 import { estimateSessionCredits, isFeatureGated, requiresConfirmation } from "../lib/thinkCredits.js";
+import { isJobCancelled } from "../lib/jobManager.js";
 import type {
   PipelineEvent,
   PipelineState,
@@ -177,12 +178,23 @@ export async function runThinkerCore(
     conversationId?: string;
     pipelineStateId?: string;
     workflowSystemPrompt?: string;
+    jobId?: string;
   }
 ): Promise<void> {
   const startTime = Date.now();
   const planTier: PlanTier = options?.planTier ?? "free";
   const conversationId = options?.conversationId;
   const pipelineStateId = options?.pipelineStateId;
+  const jobId = options?.jobId;
+
+  // ── Cancellation ───────────────────────────────────────────────────────
+  // Checked between pipeline stages so a user-requested stop takes effect
+  // promptly without needing to interrupt an in-flight LLM call.
+  function checkCancelled(): boolean {
+    if (!jobId || !isJobCancelled(jobId)) return false;
+    emit({ type: "done", status: "cancelled" });
+    return true;
+  }
 
   // ── Workflow System Prompt injection ──────────────────────────────────────
   // If the request was triggered from a saved Workflow, prepend the user's
@@ -638,6 +650,8 @@ export async function runThinkerCore(
 
   state.requirementsComplete = true;
 
+  if (checkCancelled()) return;
+
   // ── 5. Strategy Agent (Section 5.12) ────────────────────────────────────
   if (!isFeatureGated("strategy_agent", planTier)) {
     const stratStart = Date.now();
@@ -714,6 +728,8 @@ export async function runThinkerCore(
 
   plannerLoop: while (true) {
     plannerCycles += 1;
+
+    if (checkCancelled()) return;
 
     if (!skipPlanner) {
       const planStart = Date.now();
@@ -808,6 +824,8 @@ export async function runThinkerCore(
     let imageAttemptNumber = options?.imageAttemptNumber ?? 0;
 
     builderReviewerLoop: while (true) {
+      if (checkCancelled()) return;
+
       const imageSteps = state.plan.filter((s) => s.outputType === "image");
       const codeSteps = state.plan.filter((s) => s.outputType !== "image");
 
@@ -1065,6 +1083,8 @@ export async function runThinkerCore(
       }
 
       // ── 11. Consensus Agent (conditional, Section 6.4) ───────────────
+      if (checkCancelled()) return;
+
       const reviewerCriticDisagree =
         state.reviewerResult.passed && state.criticResult.overallSeverity === "high";
       const highRisk = isHighRiskContent(lastBuilderOutput.content);

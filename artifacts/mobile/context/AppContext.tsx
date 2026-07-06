@@ -16,6 +16,7 @@ export interface Message {
   agentType?: AgentType;
   timestamp: number;
   language?: string;
+  edited?: boolean;
 }
 
 export interface DecisionMemoryEntry {
