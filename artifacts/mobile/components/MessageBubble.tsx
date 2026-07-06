@@ -302,7 +302,10 @@ export const MessageBubble = React.memo(function MessageBubble({ message, onRelo
   prev.message.id === next.message.id &&
   prev.message.content === next.message.content &&
   prev.message.role === next.message.role &&
-  prev.message.edited === next.message.edited
+  prev.message.edited === next.message.edited &&
+  prev.onEdit === next.onEdit &&
+  prev.onReload === next.onReload &&
+  prev.onReply === next.onReply
 );
 
 function ActionBtn({
