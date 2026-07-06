@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -25,6 +26,8 @@ interface Props {
   disabled?: boolean;
   placeholder?: string;
   agentType?: AgentType;
+  editingText?: string | null;
+  onCancelEdit?: () => void;
 }
 
 export function ChatInput({
@@ -33,6 +36,8 @@ export function ChatInput({
   disabled = false,
   placeholder,
   agentType,
+  editingText,
+  onCancelEdit,
 }: Props) {
   const colors = useColors();
   const [text, setText] = useState("");
@@ -40,6 +45,8 @@ export function ChatInput({
   const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const isEditing = editingText != null;
 
   const agentDef = agentType ? AGENTS[agentType] : null;
   const resolvedPlaceholder =
@@ -56,6 +63,22 @@ export function ChatInput({
       mass: 0.7,
     }).start();
   }, [inputH]);
+
+  useEffect(() => {
+    if (editingText != null) {
+      setText(editingText);
+      setInputH(INPUT_MIN_H);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [editingText]);
+
+  function handleCancelEdit() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setText("");
+    setInputH(INPUT_MIN_H);
+    heightAnim.setValue(INPUT_MIN_H);
+    onCancelEdit?.();
+  }
 
   function handleContentSizeChange(e: any) {
     if (!text) return;
@@ -81,72 +104,90 @@ export function ChatInput({
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-        },
-      ]}
-    >
-      <TouchableOpacity
-        style={styles.iconBtn}
-        onPress={onAttach}
-        activeOpacity={0.6}
-        hitSlop={8}
-      >
-        <Feather name="paperclip" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.iconBtn}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          setVoiceCallback((transcribed) => {
-            if (transcribed.trim()) setText(transcribed.trim());
-          });
-          router.push("/voice" as any);
-        }}
-        activeOpacity={0.6}
-        hitSlop={8}
-      >
-        <Feather name="mic" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
-
-      <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
-        <TextInput
-          ref={inputRef}
-          style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
-          value={text}
-          onChangeText={setText}
-          placeholder={resolvedPlaceholder}
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          maxLength={4000}
-          blurOnSubmit={false}
-          scrollEnabled={inputH >= INPUT_MAX_H}
-          onContentSizeChange={handleContentSizeChange}
-          onSubmitEditing={handleSend}
-        />
-      </Animated.View>
-
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <Pressable
+    <View>
+      {isEditing && (
+        <View
           style={[
-            styles.sendBtn,
-            { backgroundColor: canSend ? colors.primary : colors.border },
+            styles.editingBar,
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
-          onPress={handleSend}
-          disabled={!canSend}
         >
-          <Feather
-            name="arrow-up"
-            size={18}
-            color={canSend ? "#F9FAFB" : colors.textTertiary}
+          <Feather name="edit-2" size={13} color={colors.primary} />
+          <Text style={[styles.editingLabel, { color: colors.textSecondary }]}>
+            Editing message
+          </Text>
+          <TouchableOpacity onPress={handleCancelEdit} hitSlop={8}>
+            <Feather name="x" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      )}
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onAttach}
+          activeOpacity={0.6}
+          hitSlop={8}
+        >
+          <Feather name="paperclip" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setVoiceCallback((transcribed) => {
+              if (transcribed.trim()) setText(transcribed.trim());
+            });
+            router.push("/voice" as any);
+          }}
+          activeOpacity={0.6}
+          hitSlop={8}
+        >
+          <Feather name="mic" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
+            value={text}
+            onChangeText={setText}
+            placeholder={resolvedPlaceholder}
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            maxLength={4000}
+            blurOnSubmit={false}
+            scrollEnabled={inputH >= INPUT_MAX_H}
+            onContentSizeChange={handleContentSizeChange}
+            onSubmitEditing={handleSend}
           />
-        </Pressable>
-      </Animated.View>
+        </Animated.View>
+
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <Pressable
+            style={[
+              styles.sendBtn,
+              { backgroundColor: canSend ? colors.primary : colors.border },
+            ]}
+            onPress={handleSend}
+            disabled={!canSend}
+          >
+            <Feather
+              name="arrow-up"
+              size={18}
+              color={canSend ? "#F9FAFB" : colors.textTertiary}
+            />
+          </Pressable>
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -163,6 +204,23 @@ const floatShadow = Platform.select({
 });
 
 const styles = StyleSheet.create({
+  editingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginHorizontal: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  editingLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+  },
   container: {
     flexDirection: "row",
     alignItems: "flex-end",

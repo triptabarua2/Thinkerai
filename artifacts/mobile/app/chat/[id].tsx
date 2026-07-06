@@ -239,8 +239,17 @@ export default function ChatScreen() {
     if (lastUser) handleSendRef.current(lastUser.content);
   }, [isStreaming, messages]);
 
-  const handleEditMessage = useCallback((_msg: import("@/context/AppContext").Message) => {
-    /* editing is surfaced via the input — future: pre-fill input */
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const editHistoryOverrideRef = useRef<Message[] | null>(null);
+
+  const handleEditMessage = useCallback((msg: import("@/context/AppContext").Message) => {
+    if (isStreaming) return;
+    setEditingMessage(msg);
+  }, [isStreaming]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    editHistoryOverrideRef.current = null;
   }, []);
 
   const handleReplyMessage = useCallback((_msg: import("@/context/AppContext").Message) => {
@@ -307,6 +316,17 @@ export default function ChatScreen() {
 
   async function handleSend(text: string) {
     if (isStreaming || !id) return;
+
+    // If the user is editing a previous message, drop that message and
+    // everything sent after it — the edited text replaces it and the
+    // conversation continues from that point onward.
+    if (editingMessage) {
+      const idx = messages.findIndex((m) => m.id === editingMessage.id);
+      const truncated = idx !== -1 ? messages.slice(0, idx) : messages;
+      editHistoryOverrideRef.current = truncated;
+      setMessages(truncated);
+      setEditingMessage(null);
+    }
 
     // Fix counter enforcement
     const fixType = detectFixType(text);
@@ -740,7 +760,9 @@ export default function ChatScreen() {
 
   async function sendMessage(text: string, displayText?: string, existingPendingId?: string) {
     if (!id) return;
-    const currentMessages = [...messages];
+    const historyOverride = editHistoryOverrideRef.current;
+    editHistoryOverrideRef.current = null;
+    const currentMessages = historyOverride ?? [...messages];
 
     const pendingId = existingPendingId ?? genId();
 
@@ -1803,6 +1825,8 @@ export default function ChatScreen() {
             disabled={isStreaming || isClarifying}
             agentType={agentType}
             placeholder={isClarifying ? "Answer the questions above first..." : undefined}
+            editingText={editingMessage?.content ?? null}
+            onCancelEdit={handleCancelEdit}
           />
         </View>
       </KeyboardAvoidingView>
