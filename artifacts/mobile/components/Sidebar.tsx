@@ -415,7 +415,7 @@ export function Sidebar({ visible, onClose }: Props) {
           {[
             { icon: "folder", label: "Projects", onPress: () => { onClose(); router.push("/projects" as any); } },
             { icon: "zap", label: "Workflows", onPress: () => { onClose(); router.push("/workflows" as any); } },
-            { icon: "settings", label: "Settings", onPress: () => { onClose(); router.push("/settings" as any); } },
+            { icon: "grid", label: "Library", onPress: () => { onClose(); router.push("/library" as any); } },
           ].map((item) => (
             <TouchableOpacity
               key={item.label}
