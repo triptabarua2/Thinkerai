@@ -164,21 +164,6 @@ export function ChatInput({
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setVoiceCallback((transcribed) => {
-              if (transcribed.trim()) setText(transcribed.trim());
-            });
-            router.push("/voice" as any);
-          }}
-          activeOpacity={0.6}
-          hitSlop={8}
-        >
-          <Feather name="mic" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
         <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
           <TextInput
             ref={inputRef}
@@ -195,6 +180,21 @@ export function ChatInput({
             onSubmitEditing={handleSend}
           />
         </Animated.View>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setVoiceCallback((transcribed) => {
+              if (transcribed.trim()) setText(transcribed.trim());
+            });
+            router.push("/voice" as any);
+          }}
+          activeOpacity={0.6}
+          hitSlop={8}
+        >
+          <Feather name="mic" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
 
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           {isStreaming ? (
