@@ -20,8 +20,7 @@ import { useConnectors } from "@/hooks/useConnectors";
 import { setVoiceCallback } from "@/lib/voiceStore";
 
 const INPUT_MIN_H = 52;
-const INPUT_MAX_H = 220; // ~8-9 lines at lineHeight 25
-const LINE_HEIGHT = 25;
+const INPUT_MAX_H = 220; // ~8 lines at lineHeight 25
 
 interface Props {
   onSend: (text: string) => void;
@@ -72,6 +71,20 @@ export function ChatInput({
       mass: 0.7,
     }).start();
   }, [inputH]);
+
+  // Web: react-native-web's onContentSizeChange is unreliable, so measure the
+  // underlying <textarea> DOM node's scrollHeight directly and size it to fit.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = inputRef.current as unknown as HTMLTextAreaElement | null;
+    if (!node || !node.style) return;
+    node.style.height = "auto";
+    const scrollHeight = node.scrollHeight;
+    const target = Math.min(Math.max(scrollHeight, INPUT_MIN_H), INPUT_MAX_H);
+    node.style.height = `${target}px`;
+    node.style.overflowY = scrollHeight > INPUT_MAX_H ? "auto" : "hidden";
+    setInputH(target);
+  }, [text]);
 
   useEffect(() => {
     if (editingText != null) {
@@ -176,14 +189,7 @@ export function ChatInput({
             style={[
               styles.input,
               { color: colors.text, outlineStyle: "none" } as any,
-              Platform.OS === "web"
-                ? ({
-                    minHeight: INPUT_MIN_H - 4,
-                    maxHeight: INPUT_MAX_H,
-                    height: "auto",
-                    alignSelf: "stretch",
-                  } as any)
-                : null,
+              Platform.OS === "web" ? ({ alignSelf: "stretch" } as any) : null,
             ]}
             value={text}
             onChangeText={setText}
