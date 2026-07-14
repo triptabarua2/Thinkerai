@@ -21,6 +21,7 @@ import { setVoiceCallback } from "@/lib/voiceStore";
 
 const INPUT_MIN_H = 52;
 const INPUT_MAX_H = 220; // ~8 lines at lineHeight 25
+const LINE_HEIGHT = 25;
 
 interface Props {
   onSend: (text: string) => void;
@@ -314,11 +315,13 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: (INPUT_MIN_H - LINE_HEIGHT) / 2,
   },
   input: {
     fontSize: 17,
-    lineHeight: 25,
+    lineHeight: LINE_HEIGHT,
+    width: "100%",
     paddingTop: 0,
     paddingBottom: 0,
     paddingHorizontal: 4,
