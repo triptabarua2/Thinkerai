@@ -20,7 +20,8 @@ import { useConnectors } from "@/hooks/useConnectors";
 import { setVoiceCallback } from "@/lib/voiceStore";
 
 const INPUT_MIN_H = 52;
-const INPUT_MAX_H = 180;
+const INPUT_MAX_H = 220; // ~8-9 lines at lineHeight 25
+const LINE_HEIGHT = 25;
 
 interface Props {
   onSend: (text: string) => void;
@@ -89,8 +90,8 @@ export function ChatInput({
   }
 
   function handleContentSizeChange(e: any) {
-    if (!text) return;
-    const h = e.nativeEvent.contentSize.height;
+    const h = e.nativeEvent.contentSize?.height;
+    if (!h) return;
     const target = Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H);
     if (Math.abs(target - inputH) > 0.5) setInputH(target);
   }
@@ -164,10 +165,26 @@ export function ChatInput({
           </View>
         </TouchableOpacity>
 
-        <Animated.View style={[styles.inputWrap, { height: heightAnim }]}>
+        <Animated.View
+          style={[
+            styles.inputWrap,
+            Platform.OS !== "web" ? { height: heightAnim } : undefined,
+          ]}
+        >
           <TextInput
             ref={inputRef}
-            style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
+            style={[
+              styles.input,
+              { color: colors.text, outlineStyle: "none" } as any,
+              Platform.OS === "web"
+                ? ({
+                    minHeight: INPUT_MIN_H - 4,
+                    maxHeight: INPUT_MAX_H,
+                    height: "auto",
+                    alignSelf: "stretch",
+                  } as any)
+                : null,
+            ]}
             value={text}
             onChangeText={setText}
             placeholder={resolvedPlaceholder}
@@ -175,7 +192,7 @@ export function ChatInput({
             multiline
             maxLength={4000}
             blurOnSubmit={false}
-            scrollEnabled={inputH >= INPUT_MAX_H}
+            scrollEnabled={Platform.OS !== "web" && inputH >= INPUT_MAX_H}
             onContentSizeChange={handleContentSizeChange}
             onSubmitEditing={handleSend}
           />
