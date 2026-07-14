@@ -320,9 +320,11 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   input: {
+    flex: 1,
     fontSize: 17,
     lineHeight: LINE_HEIGHT,
     width: "100%",
+    textAlignVertical: "top",
     paddingTop: 0,
     paddingBottom: 0,
     paddingHorizontal: 4,
