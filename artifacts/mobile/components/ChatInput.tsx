@@ -49,6 +49,8 @@ export function ChatInput({
   const colors = useColors();
   const [text, setText] = useState("");
   const [inputH, setInputH] = useState(INPUT_MIN_H);
+  const [inputWidth, setInputWidth] = useState<number | null>(null);
+  const [measuredTextH, setMeasuredTextH] = useState(LINE_HEIGHT);
   const [connectorsVisible, setConnectorsVisible] = useState(false);
   const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const inputRef = useRef<TextInput>(null);
@@ -73,19 +75,17 @@ export function ChatInput({
     }).start();
   }, [inputH]);
 
-  // Web: react-native-web's onContentSizeChange is unreliable, so measure the
-  // underlying <textarea> DOM node's scrollHeight directly and size it to fit.
+  // Cross-platform auto-grow: an invisible mirror <Text> (same font, same
+  // measured width) wraps identically to the real TextInput on both web and
+  // native, so its onLayout height is a reliable source for the box height —
+  // unlike RN's onContentSizeChange, which is flaky on web.
   useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const node = inputRef.current as unknown as HTMLTextAreaElement | null;
-    if (!node || !node.style) return;
-    node.style.height = "auto";
-    const scrollHeight = node.scrollHeight;
-    const target = Math.min(Math.max(scrollHeight, INPUT_MIN_H), INPUT_MAX_H);
-    node.style.height = `${target}px`;
-    node.style.overflowY = scrollHeight > INPUT_MAX_H ? "auto" : "hidden";
-    setInputH(target);
-  }, [text]);
+    const target = Math.min(
+      Math.max(measuredTextH + (INPUT_MIN_H - LINE_HEIGHT), INPUT_MIN_H),
+      INPUT_MAX_H
+    );
+    if (Math.abs(target - inputH) > 0.5) setInputH(target);
+  }, [measuredTextH]);
 
   useEffect(() => {
     if (editingText != null) {
@@ -101,13 +101,6 @@ export function ChatInput({
     setInputH(INPUT_MIN_H);
     heightAnim.setValue(INPUT_MIN_H);
     onCancelEdit?.();
-  }
-
-  function handleContentSizeChange(e: any) {
-    const h = e.nativeEvent.contentSize?.height;
-    if (!h) return;
-    const target = Math.min(Math.max(h, INPUT_MIN_H), INPUT_MAX_H);
-    if (Math.abs(target - inputH) > 0.5) setInputH(target);
   }
 
   function handleSend() {
@@ -180,18 +173,12 @@ export function ChatInput({
         </TouchableOpacity>
 
         <Animated.View
-          style={[
-            styles.inputWrap,
-            Platform.OS !== "web" ? { height: heightAnim } : undefined,
-          ]}
+          style={[styles.inputWrap, { height: heightAnim }]}
+          onLayout={(e) => setInputWidth(e.nativeEvent.layout.width)}
         >
           <TextInput
             ref={inputRef}
-            style={[
-              styles.input,
-              { color: colors.text, outlineStyle: "none" } as any,
-              Platform.OS === "web" ? ({ alignSelf: "stretch" } as any) : null,
-            ]}
+            style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
             value={text}
             onChangeText={setText}
             placeholder={resolvedPlaceholder}
@@ -199,10 +186,24 @@ export function ChatInput({
             multiline
             maxLength={4000}
             blurOnSubmit={false}
-            scrollEnabled={Platform.OS !== "web" && inputH >= INPUT_MAX_H}
-            onContentSizeChange={handleContentSizeChange}
+            scrollEnabled={inputH >= INPUT_MAX_H}
             onSubmitEditing={handleSend}
           />
+
+          {/* Invisible mirror — wraps identically to the TextInput above so its
+              measured height reliably drives auto-grow on every platform. */}
+          {inputWidth != null && (
+            <Text
+              style={[
+                styles.input,
+                styles.mirrorText,
+                { width: inputWidth, pointerEvents: "none" } as any,
+              ]}
+              onLayout={(e) => setMeasuredTextH(e.nativeEvent.layout.height)}
+            >
+              {(text.length > 0 ? text : " ") + "\u200b"}
+            </Text>
+          )}
         </Animated.View>
 
         <TouchableOpacity
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
   inputWrap: {
     flex: 1,
     justifyContent: "flex-start",
-    paddingTop: (INPUT_MIN_H - LINE_HEIGHT) / 2,
+    paddingTop: 6,
   },
   input: {
     fontSize: 17,
@@ -325,6 +326,13 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 0,
     paddingHorizontal: 4,
+  },
+  mirrorText: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    opacity: 0,
+    zIndex: -1,
   },
   sendBtn: {
     width: 36,
