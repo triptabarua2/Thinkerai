@@ -5,3 +5,4 @@
 - [DB persistence for agent logs and versions](db-persistence-wiring.md) — persistLog/persistVersion closures inside runThinkerCore; conversationId threaded from pipeline.ts body → options; fire-and-forget pattern, never blocks pipeline
 - [Three-feature implementation](three-feature-impl.md) — FinalOutputCard/voice/Stripe wiring; key lessons on state reset coverage and expo-av deprecation
 - [Pipeline cancellation pattern](pipeline-cancellation.md) — stop button uses cooperative checkCancelled() at stage boundaries + AbortController; don't let markJobComplete overwrite a cancelled status
+- [Third-party app connectors](connectors-mock-pattern.md) — no real OAuth backend exists; "connect app" toggles are local AsyncStorage state only, matching existing demo/mock conventions

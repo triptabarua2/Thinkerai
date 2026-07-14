@@ -14,7 +14,9 @@ import {
 } from "react-native";
 
 import { AGENTS, type AgentType } from "@/lib/agents";
+import { ConnectorsSheet } from "@/components/ConnectorsSheet";
 import { useColors } from "@/hooks/useColors";
+import { useConnectors } from "@/hooks/useConnectors";
 import { setVoiceCallback } from "@/lib/voiceStore";
 
 const INPUT_MIN_H = 52;
@@ -46,9 +48,11 @@ export function ChatInput({
   const colors = useColors();
   const [text, setText] = useState("");
   const [inputH, setInputH] = useState(INPUT_MIN_H);
+  const [connectorsVisible, setConnectorsVisible] = useState(false);
   const heightAnim = useRef(new Animated.Value(INPUT_MIN_H)).current;
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const { connectedIds } = useConnectors();
 
   const isEditing = editingText != null;
 
@@ -147,6 +151,23 @@ export function ChatInput({
           style={styles.iconBtn}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setConnectorsVisible(true);
+          }}
+          activeOpacity={0.6}
+          hitSlop={8}
+        >
+          <View>
+            <Feather name="link-2" size={18} color={colors.textSecondary} />
+            {connectedIds.length > 0 && (
+              <View style={[styles.connectorDot, { backgroundColor: colors.success, borderColor: colors.card }]} />
+            )}
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setVoiceCallback((transcribed) => {
               if (transcribed.trim()) setText(transcribed.trim());
             });
@@ -204,6 +225,11 @@ export function ChatInput({
           )}
         </Animated.View>
       </View>
+
+      <ConnectorsSheet
+        visible={connectorsVisible}
+        onClose={() => setConnectorsVisible(false)}
+      />
     </View>
   );
 }
@@ -253,6 +279,15 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  connectorDot: {
+    position: "absolute",
+    top: -1,
+    right: -1,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    borderWidth: 1.5,
   },
   inputWrap: {
     flex: 1,
