@@ -324,6 +324,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: LINE_HEIGHT,
     width: "100%",
+    textAlign: "left",
     textAlignVertical: "top",
     paddingTop: 0,
     paddingBottom: 0,
