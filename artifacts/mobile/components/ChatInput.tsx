@@ -153,7 +153,14 @@ export function ChatInput({
         >
           <TextInput
             ref={inputRef}
-            style={[styles.input, { color: colors.text, outlineStyle: "none" } as any]}
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                outlineStyle: "none",
+                textAlign: "left",
+              } as any,
+            ]}
             value={text}
             onChangeText={setText}
             placeholder={resolvedPlaceholder}
@@ -330,6 +337,7 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     width: "100%",
+    alignItems: "stretch",
     justifyContent: "flex-start",
   },
   input: {
