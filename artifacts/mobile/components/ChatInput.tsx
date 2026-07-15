@@ -146,32 +146,7 @@ export function ChatInput({
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={onAttach}
-          activeOpacity={0.6}
-          hitSlop={8}
-        >
-          <Feather name="paperclip" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setConnectorsVisible(true);
-          }}
-          activeOpacity={0.6}
-          hitSlop={8}
-        >
-          <View>
-            <Feather name="link-2" size={18} color={colors.textSecondary} />
-            {connectedIds.length > 0 && (
-              <View style={[styles.connectorDot, { backgroundColor: colors.success, borderColor: colors.card }]} />
-            )}
-          </View>
-        </TouchableOpacity>
-
+        {/* Text input — full width, starts from the left border */}
         <Animated.View
           style={[styles.inputWrap, { height: heightAnim }]}
           onLayout={(e) => setInputWidth(e.nativeEvent.layout.width)}
@@ -206,49 +181,80 @@ export function ChatInput({
           )}
         </Animated.View>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setVoiceCallback((transcribed) => {
-              if (transcribed.trim()) setText(transcribed.trim());
-            });
-            router.push("/voice" as any);
-          }}
-          activeOpacity={0.6}
-          hitSlop={8}
-        >
-          <Feather name="mic" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {/* Icon row — below the text input */}
+        <View style={styles.iconRow}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={onAttach}
+            activeOpacity={0.6}
+            hitSlop={8}
+          >
+            <Feather name="paperclip" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
 
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          {isStreaming ? (
-            <Pressable
-              style={[styles.sendBtn, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onStop?.();
-              }}
-            >
-              <Feather name="square" size={16} color="#F9FAFB" />
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[
-                styles.sendBtn,
-                { backgroundColor: canSend ? colors.primary : colors.border },
-              ]}
-              onPress={handleSend}
-              disabled={!canSend}
-            >
-              <Feather
-                name="arrow-up"
-                size={18}
-                color={canSend ? "#F9FAFB" : colors.textTertiary}
-              />
-            </Pressable>
-          )}
-        </Animated.View>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setConnectorsVisible(true);
+            }}
+            activeOpacity={0.6}
+            hitSlop={8}
+          >
+            <View>
+              <Feather name="link-2" size={18} color={colors.textSecondary} />
+              {connectedIds.length > 0 && (
+                <View style={[styles.connectorDot, { backgroundColor: colors.success, borderColor: colors.card }]} />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.iconRowSpacer} />
+
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setVoiceCallback((transcribed) => {
+                if (transcribed.trim()) setText(transcribed.trim());
+              });
+              router.push("/voice" as any);
+            }}
+            activeOpacity={0.6}
+            hitSlop={8}
+          >
+            <Feather name="mic" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            {isStreaming ? (
+              <Pressable
+                style={[styles.sendBtn, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onStop?.();
+                }}
+              >
+                <Feather name="square" size={16} color="#F9FAFB" />
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[
+                  styles.sendBtn,
+                  { backgroundColor: canSend ? colors.primary : colors.border },
+                ]}
+                onPress={handleSend}
+                disabled={!canSend}
+              >
+                <Feather
+                  name="arrow-up"
+                  size={18}
+                  color={canSend ? "#F9FAFB" : colors.textTertiary}
+                />
+              </Pressable>
+            )}
+          </Animated.View>
+        </View>
       </View>
 
       <ConnectorsSheet
@@ -289,15 +295,23 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   container: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    borderRadius: 32,
+    flexDirection: "column",
+    borderRadius: 24,
     borderWidth: 1,
     marginHorizontal: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    gap: 6,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 2,
     ...(floatShadow as object),
+  },
+  iconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  iconRowSpacer: {
+    flex: 1,
   },
   iconBtn: {
     width: 40,
@@ -315,9 +329,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   inputWrap: {
-    flex: 1,
+    width: "100%",
     justifyContent: "flex-start",
-    paddingTop: 6,
   },
   input: {
     flex: 1,
@@ -328,7 +341,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     paddingTop: 0,
     paddingBottom: 0,
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
   },
   mirrorText: {
     position: "absolute",
